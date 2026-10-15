@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">PageAlert Live</string>
+    <string name="app_icon_description">PageAlert Live radar</string>
+    <string name="monitoring_title">PageAlert Live is monitoring</string>
+    <string name="alarm_title">PageAlert Live alarm</string>
+    <string name="alarm_channel_description">Alarm controls; looping audio is played by PageAlert Live until disarmed</string>
+    <string name="case_sensitive">Case-sensitive matching</string>
+    <string name="enable_monitor">Enable this monitor</string>
+    <string name="invalid_interval">Enter whole-number intervals between 1 and 86,400.</string>
+</resources>

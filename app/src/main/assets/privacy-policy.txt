@@ -1,0 +1,46 @@
+PageAlert Live — Privacy policy / Datenschutzerklärung
+15 October 2026 / 15. Oktober 2026
+
+English
+
+PageAlert Live does not collect or send personal data to its developer. There is no developer backend, advertising, analytics, tracking, account registration, or automatic crash-report upload.
+
+Watchdog URLs, names, trigger rules, preferences, check timestamps and up to 100 activity entries are stored in the app's private storage on your device for monitoring and alerts. The last crash report, including device model, Android/app version and an error trace, may also be stored locally. Delete watchdogs or clear activity in the app; Android's Clear storage or uninstall removes private app data. Android cloud and device-transfer backups are disabled for the app.
+
+Your phone contacts the websites you choose, possible redirect destinations and configured DNS/network services. These receive normal connection information, including your IP address and requested URL. Each outgoing request uses a randomized browser-style User-Agent header. Their own privacy policies apply. Prefer HTTPS; HTTP is unencrypted. The app does not provide website login or tracking-cookie storage. Opening a webpage launches your normal browser, whose own cookies and privacy settings apply.
+
+Notifications can show watchdog names, countdowns and alarm/error details on the lock screen. Android settings control visibility. Network access supports page checks and connection selection; foreground-service, wake-lock, boot, notification and battery settings support user-started monitoring and alarms. Contacts, location, photos and advertising-ID permissions are not requested.
+
+Copy last crash report only copies a report to your clipboard. Nothing is uploaded automatically. If you voluntarily submit diagnostics or contact an external support service, its privacy policy applies. The developer receives only information you choose to submit through those external services. Do not include personal information or private URLs in public issues.
+
+App provider / privacy and support contact:
+Clinscout Database GmbH
+Florenz-Sartorius-Str. 5
+37079 Göttingen
+Germany
+Email: info@clinscout.com
+
+Project maintainer: Grunwalskii (GitHub).
+Public issue tracker: https://github.com/Grunwalskii/PageAlert-Live/issues (public).
+
+Deutsch
+
+PageAlert Live erhebt und übermittelt keine personenbezogenen Daten an den Entwickler. Die App verwendet keinen Entwickler-Server, keine Werbung, Analyse- oder Trackingdienste, keine Benutzerkonten und keinen automatischen Versand von Absturzberichten.
+
+Watchdog-Adressen, Namen, Auslöseregeln, Einstellungen, Prüfzeitpunkte und bis zu 100 Aktivitäten werden für Überwachung und Alarme im privaten App-Speicher auf Ihrem Gerät gespeichert. Auch der letzte Absturzbericht mit Gerätemodell, Android-/App-Version und Fehlerprotokoll kann lokal gespeichert werden. Watchdogs und Aktivitäten lassen sich in der App löschen. „Speicherinhalt löschen“ in Android oder eine Deinstallation entfernt die privaten App-Daten. Cloud- und Geräteübertragungs-Backups durch Android sind für die App deaktiviert.
+
+Ihr Gerät kontaktiert die von Ihnen ausgewählten Webseiten, mögliche Weiterleitungsziele sowie die konfigurierten DNS- und Netzanbieter. Dabei werden übliche Verbindungsdaten wie Ihre IP-Adresse und die angeforderte URL übermittelt. Jede ausgehende Anfrage verwendet eine zufällig ausgewählte Browser-Kennung (User-Agent). Es gelten deren eigene Datenschutzhinweise. Verwenden Sie möglichst HTTPS; HTTP ist unverschlüsselt. Webseiten-Anmeldungen und die Speicherung von Tracking-Cookies werden nicht angeboten. Beim Öffnen einer Webseite wird Ihr normaler Browser verwendet; dafür gelten dessen eigene Cookies und Datenschutzeinstellungen.
+
+Benachrichtigungen können Watchdog-Namen, Restzeiten sowie Alarm- oder Fehlerdetails auf dem Sperrbildschirm zeigen. Die Sichtbarkeit lässt sich in Android einstellen. Netzwerkzugriff dient den Prüfungen und der Verbindungsauswahl. Vordergrunddienst, Wachhaltesperre, Start nach Neustart, Benachrichtigungen und Akku-Einstellungen dienen der vom Nutzer gestarteten Überwachung und den Alarmen. Kontakte, Standort, Fotos und Werbe-ID werden nicht angefordert.
+
+„Copy last crash report“ kopiert einen Bericht ausschließlich in Ihre Zwischenablage. Es erfolgt kein automatischer Upload. Wenn Sie Diagnosen freiwillig über einen externen Supportdienst weitergeben, gelten dessen Datenschutzhinweise. Der Entwickler erhält nur die Informationen, die Sie über solche Dienste freiwillig bereitstellen. Veröffentlichen Sie keine personenbezogenen Daten oder privaten URLs in öffentlichen Issues.
+
+App-Anbieter / Kontakt für Datenschutz und Support:
+Clinscout Database GmbH
+Florenz-Sartorius-Str. 5
+37079 Göttingen
+Deutschland
+E-Mail: info@clinscout.com
+
+Projektbetreuer: Grunwalskii (GitHub).
+Öffentliche Fehlermeldungen: https://github.com/Grunwalskii/PageAlert-Live/issues (öffentlich).
