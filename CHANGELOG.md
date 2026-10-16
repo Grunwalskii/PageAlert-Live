@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.15-dev
+
+- Label IP fallback explicitly as "Fallback to IPv4" or "Fallback to IPv6", keeping only the IP-family segment red. Normal checks retain their usual label.
+
 ## 1.0.14-dev
 
 - Add Settings → Network diagnostics with the requested/used connection, original fallback exception and cause, outcome, timestamp, and Wi-Fi address/route/DNS details.

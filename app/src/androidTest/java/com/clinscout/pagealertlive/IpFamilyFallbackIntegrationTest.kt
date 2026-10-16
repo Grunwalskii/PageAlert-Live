@@ -53,11 +53,16 @@ class IpFamilyFallbackIntegrationTest {
                 val styled = row.text as? Spanned
                 val spans = styled?.getSpans(0, styled.length, ForegroundColorSpan::class.java).orEmpty()
                 if (index < 2) {
+                    assertTrue(row.text.toString().endsWith("Wi-Fi • Fallback to ${if (index == 0) "IPv4" else "IPv6"}"))
                     val span = spans.single()
                     assertEquals(Color.rgb(255, 133, 133), span.foregroundColor)
                     assertEquals(if (index == 0) "IPv4" else "IPv6", row.text.subSequence(styled!!.getSpanStart(span), styled.getSpanEnd(span)).toString())
                     assertEquals(row.text.length, styled.getSpanEnd(span))
-                } else assertTrue("A normal request must clear the red fallback mark", spans.isEmpty())
+                } else {
+                    assertTrue("A normal request must clear the red fallback mark", spans.isEmpty())
+                    assertTrue(row.text.toString().endsWith("Wi-Fi • IPv4"))
+                    assertFalse(row.text.contains("Fallback"))
+                }
             }
         }
         try {

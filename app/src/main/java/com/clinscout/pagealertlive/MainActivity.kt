@@ -238,12 +238,15 @@ class MainActivity : Activity() {
                 status?.connection?.ifBlank { null }
                     ?: if (monitor.alternateNetworks) "Wi-Fi / mobile" else "Wi-Fi IPv4 / IPv6"
             } else null
-            val connectionLine = "Interval  ${interval(monitor)}" + (connection?.let { " • $it" } ?: "")
+            val fallbackFamily = if (status?.ipFallback == true && connection != null)
+                IpFamily.entries.firstOrNull { connection.endsWith(" • ${it.label}") } else null
+            val displayedConnection = if (fallbackFamily != null && connection != null)
+                connection.removeSuffix(fallbackFamily.label) + "Fallback to ${fallbackFamily.label}" else connection
+            val connectionLine = "Interval  ${interval(monitor)}" + (displayedConnection?.let { " • $it" } ?: "")
             card.addView(text(connectionLine, 12, muted).apply {
-                if (status?.ipFallback == true && connection != null) {
-                    val family = IpFamily.entries.firstOrNull { connection.endsWith(" • ${it.label}") }
-                    if (family != null) text = SpannableString(connectionLine).apply {
-                        setSpan(ForegroundColorSpan(red), length - family.label.length, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                if (fallbackFamily != null) {
+                    text = SpannableString(connectionLine).apply {
+                        setSpan(ForegroundColorSpan(red), length - fallbackFamily.label.length, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                 }
             }.spaced(8))
@@ -312,7 +315,7 @@ class MainActivity : Activity() {
             openBatterySettings()
         }.spaced())
         val networkDebug = section("Network diagnostics")
-        networkDebug.addView(text("Red IPv4/IPv6 means fallback was needed; the displayed family is the one used.", 13, muted).spaced(8))
+        networkDebug.addView(text("Fallback to IPv4 means the IPv6 attempt failed. Fallback to IPv6 means the IPv4 attempt failed.", 13, muted).spaced(8))
         val appVersion = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
         val report = buildString {
             appendLine("${getString(R.string.app_name)} $appVersion • $packageName")
