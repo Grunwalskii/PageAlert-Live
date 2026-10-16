@@ -115,11 +115,11 @@ class Crawler(private val client: OkHttpClient = defaultClient()) {
                         val body = it.body ?: throw CrawlException("The server returned no page.")
                         val type = body.contentType()
                         if (type != null && !(type.subtype.contains("html") || type.subtype == "plain")) throw CrawlException("Unsupported page type: $type")
-                        val limit = 2L * 1024 * 1024
-                        if (body.contentLength() > limit) throw CrawlException("Page exceeds the 2 MB safety limit.")
+                        val limit = 16L * 1024 * 1024
+                        if (body.contentLength() > limit) throw CrawlException("Page exceeds the 16 MB safety limit.")
                         val source = body.source()
                         source.request(limit + 1)
-                        if (source.buffer.size > limit) throw CrawlException("Page exceeds the 2 MB safety limit.")
+                        if (source.buffer.size > limit) throw CrawlException("Page exceeds the 16 MB safety limit.")
                         val html = source.buffer.readString(type?.charset(Charsets.UTF_8) ?: Charsets.UTF_8)
                         process(html)
                     }

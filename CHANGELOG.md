@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.13-dev
+
+- Raise the HTML/text response limit from 2 MiB to 16 MiB, including for chunked and gzip-compressed responses.
+- Keep compressed transfers and HTML-only checks: linked images, scripts, stylesheets, frames and media are not fetched by monitoring or price discovery.
+
 ## 1.0.12-dev
 
 - Keep both configured Wi-Fi IP families in rotation, even when network detection or DNS temporarily reports only one. Retry the other family once after a connection failure, while preserving HTTP error and Retry-After handling.

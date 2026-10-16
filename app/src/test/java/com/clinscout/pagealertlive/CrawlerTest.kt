@@ -3,6 +3,9 @@ package com.clinscout.pagealertlive
 import kotlinx.coroutines.*
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okio.Buffer
+import okio.GzipSink
+import okio.buffer
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.concurrent.TimeUnit
@@ -57,16 +60,82 @@ class CrawlerTest {
 
     @Test fun `oversized and unsupported pages are rejected`() = runBlocking {
         MockWebServer().use { server ->
-            server.enqueue(MockResponse().setBody("x".repeat(2 * 1024 * 1024 + 1)))
+            server.enqueue(MockResponse().setBody("x".repeat(16 * 1024 * 1024 + 1)))
             server.enqueue(MockResponse().setHeader("Content-Type", "image/png").setBody("data"))
             val crawler = Crawler()
             val monitor = Monitor(name = "Test", url = server.url("/").toString(), keyword = "stock")
             try {
-                repeat(2) {
+                listOf("Page exceeds the 16 MB safety limit.", "Unsupported page type: image/png").forEach { expected ->
                     try { crawler.check(monitor); error("Expected page rejection") }
-                    catch (error: CrawlException) { assertTrue(error.message!!.isNotEmpty()) }
+                    catch (error: CrawlException) { assertEquals(expected, error.message) }
                 }
             } finally { crawler.close() }
+        }
+    }
+
+    @Test fun `HTML up to exactly 16 MiB is accepted and checked through its final bytes`() = runBlocking {
+        MockWebServer().use { server ->
+            val suffix = "--><p>In stock</p>"
+            val html = "<!--" + "x".repeat(16 * 1024 * 1024 - 4 - suffix.length) + suffix
+            server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setBody(html))
+            val crawler = Crawler()
+            try {
+                assertTrue(crawler.check(Monitor(name = "Large page", url = server.url("/").toString(), keyword = "in stock")).matched)
+                assertEquals(1, server.requestCount)
+            } finally { crawler.close().join() }
+        }
+    }
+
+    @Test fun `chunked and compressed pages cannot bypass the 16 MiB limit`() = runBlocking {
+        MockWebServer().use { server ->
+            val oversized = "x".repeat(16 * 1024 * 1024 + 1)
+            val compressed = Buffer()
+            GzipSink(compressed).buffer().use { it.writeUtf8(oversized) }
+            server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setChunkedBody(oversized, 8192))
+            server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setHeader("Content-Encoding", "gzip").setBody(compressed))
+            val crawler = Crawler()
+            val monitor = Monitor(name = "Oversized stream", url = server.url("/").toString(), keyword = "stock")
+            try {
+                repeat(2) {
+                    try { crawler.check(monitor); fail("Expected oversized page rejection") }
+                    catch (expected: CrawlException) { assertEquals("Page exceeds the 16 MB safety limit.", expected.message) }
+                }
+            } finally { crawler.close().join() }
+        }
+    }
+
+    @Test fun `checks and price discovery retain compression and never load page assets`() = runBlocking {
+        MockWebServer().use { server ->
+            val html = """
+                <html><head><link rel="stylesheet" href="/style.css">
+                <style>body { background-image: url('/background.png'); }</style>
+                <script src="/app.js"></script></head><body>
+                <p>In stock</p><span class="price">$12.34</span>
+                <img src="/photo.jpg" srcset="/large.jpg 2x">
+                <iframe src="/frame.html"></iframe><video src="/movie.mp4" poster="/poster.jpg"></video>
+                <script>fetch('/extra-data');</script>
+                <!--${"x".repeat(3 * 1024 * 1024)}--></body></html>
+            """.trimIndent()
+            val compressed = Buffer()
+            GzipSink(compressed).buffer().use { it.writeUtf8(html) }
+            repeat(2) {
+                server.enqueue(MockResponse().setHeader("Content-Type", "text/html")
+                    .setHeader("Content-Encoding", "gzip").setBody(compressed.clone()))
+            }
+            val crawler = Crawler()
+            val monitor = Monitor(name = "HTML only", url = server.url("/page").toString(), keyword = "in stock")
+            try {
+                assertTrue(crawler.check(monitor).matched)
+                assertTrue(crawler.findPrices(monitor).isNotEmpty())
+                assertEquals("Only the two explicitly requested HTML pages should be fetched", 2, server.requestCount)
+                repeat(2) {
+                    val request = server.takeRequest()
+                    assertEquals("/page", request.path)
+                    assertEquals("gzip", request.getHeader("Accept-Encoding"))
+                    assertFalse(request.getHeader("Accept")!!.contains("image/"))
+                }
+                assertTrue("Compressed transfer stays much smaller than the expanded HTML", compressed.size < 32 * 1024)
+            } finally { crawler.close().join() }
         }
     }
 
