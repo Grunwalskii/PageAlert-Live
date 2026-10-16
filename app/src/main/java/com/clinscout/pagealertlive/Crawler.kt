@@ -71,12 +71,27 @@ class Crawler(private val client: OkHttpClient = defaultClient()) {
                 cleanupScope.launch { retired.connectionPool.evictAll() }
             }
             client.newBuilder().socketFactory(route.socketFactory).dns(requireNotNull(route.dns))
+                .addNetworkInterceptor { chain ->
+                    route.family?.let { IpFamilies.requireLiteralFamily(chain.request().url.host, it) }
+                    chain.proceed(chain.request())
+                }
                 // Never reuse a Wi-Fi connection for a mobile-data request.
                 .connectionPool(ConnectionPool()).build()
         }
     }
 
-    suspend fun check(monitor: Monitor, route: RequestRoute = RequestRoute()): CheckResult = fetch(monitor, route) { TriggerEvaluator.evaluate(monitor, it) }
+    suspend fun check(monitor: Monitor, route: RequestRoute = RequestRoute(), onRouteChanged: (RequestRoute) -> Unit = {}): CheckResult {
+        return try {
+            fetch(monitor, route) { TriggerEvaluator.evaluate(monitor, it) }
+        } catch (error: IOException) {
+            // A server response (including Retry-After) is not a connection
+            // failure. Only retry DNS/socket/TLS/read failures on the other family.
+            if (error is CrawlException) throw error
+            val fallback = route.fallback?.copy(ipFallback = true) ?: throw error
+            onRouteChanged(fallback)
+            fetch(monitor, fallback) { TriggerEvaluator.evaluate(monitor, it) }
+        }
+    }
 
     suspend fun findPrices(monitor: Monitor): List<PriceCandidate> = fetch(monitor, RequestRoute()) {
         PriceDiscovery.find(it, monitor.url, monitor.numberFormat)
@@ -86,6 +101,7 @@ class Crawler(private val client: OkHttpClient = defaultClient()) {
         val request = Request.Builder().url(monitor.url)
             .header("Accept", "text/html,application/xhtml+xml,text/plain;q=0.8")
             .header("Cache-Control", "no-cache").build()
+        route.family?.let { IpFamilies.requireLiteralFamily(request.url.host, it) }
         val call = clientFor(route).newCall(request)
         continuation.invokeOnCancellation { cleanupScope.launch { call.cancel() } }
         call.enqueue(object : Callback {
@@ -200,7 +216,7 @@ class MonitorEngine(
                     permits.withPermit {
                         // Recheck after acquiring a permit: another request may have rate-limited this host.
                         if ((hostCooldowns[host] ?: 0) <= System.currentTimeMillis()) {
-                            result = crawler.check(monitor, route)
+                            result = crawler.check(monitor, route) { route = it }
                             checked = true
                         }
                     }
@@ -223,7 +239,7 @@ class MonitorEngine(
             val wait = max(intervalWait, max(backoff, retryAfter))
             turn++
             if (route.path == NetworkPath.WIFI && route.family != null) wifiIpTurn++
-            repository.record(monitor, result, error, System.currentTimeMillis() + wait, httpStatus, route.label, turn, wifiIpTurn, route.note)?.let(onHttpError)
+            repository.record(monitor, result, error, System.currentTimeMillis() + wait, httpStatus, route.label, turn, wifiIpTurn, route.note, route.ipFallback)?.let(onHttpError)
             delay(wait)
         }
     }

@@ -80,7 +80,7 @@ class MonitorRepository(context: Context) {
         if (!current.running || current.monitors.none { it == monitor && it.enabled }) current else {
             val status = current.statuses[monitor.id] ?: MonitorStatus()
             current.copy(statuses = current.statuses + (monitor.id to status.copy(
-                detail = "Waiting for $connection", connection = connection, nextAt = dueAt, routeNote = "")))
+                detail = "Waiting for $connection", connection = connection, nextAt = dueAt, routeNote = "", ipFallback = false)))
         }
     }
 
@@ -89,14 +89,14 @@ class MonitorRepository(context: Context) {
             val status = current.statuses[monitor.id] ?: MonitorStatus()
             current.copy(statuses = current.statuses + (monitor.id to status.copy(
                 detail = "Skipped $connection check (connection unavailable).", connection = connection,
-                networkTurn = nextTurn, nextAt = System.currentTimeMillis(), routeNote = "")))
+                networkTurn = nextTurn, nextAt = System.currentTimeMillis(), routeNote = "", ipFallback = false)))
         }
     }
 
-    fun record(monitor: Monitor, result: CheckResult?, error: String?, nextAt: Long, httpStatus: Int? = null, connection: String = "", networkTurn: Long? = null, wifiIpTurn: Long? = null, routeNote: String = ""): AlertEvent? {
+    fun record(monitor: Monitor, result: CheckResult?, error: String?, nextAt: Long, httpStatus: Int? = null, connection: String = "", networkTurn: Long? = null, wifiIpTurn: Long? = null, routeNote: String = "", ipFallback: Boolean = false): AlertEvent? {
         var httpEvent: AlertEvent? = null
         update(result?.matched == true || httpStatus != null) { state ->
-            val next = AlertReducer.record(state, monitor, result, error, System.currentTimeMillis(), nextAt, httpStatus, connection, networkTurn, wifiIpTurn, routeNote)
+            val next = AlertReducer.record(state, monitor, result, error, System.currentTimeMillis(), nextAt, httpStatus, connection, networkTurn, wifiIpTurn, routeNote, ipFallback)
             httpEvent = next.history.firstOrNull()?.takeIf { it.kind == EventKind.HTTP_ERROR && it !== state.history.firstOrNull() }
             next
         }
@@ -118,7 +118,7 @@ class MonitorRepository(context: Context) {
             it.getString("id") to MonitorStatus(it.optLong("checkedAt"), it.optLong("nextAt"), it.optString("detail"), it.optInt("failures"), it.optBoolean("matched"), it.optLong("checks"), it.optInt("httpStatus").takeIf { code -> code > 0 }, it.optString("connection"), it.optLong("networkTurn"), it.optLong("wifiIpTurn"), it.optString("routeNote"),
                 if (it.has("keywordMatched") && !it.isNull("keywordMatched")) it.getBoolean("keywordMatched") else null,
                 if (it.has("priceMatched") && !it.isNull("priceMatched")) it.getBoolean("priceMatched") else null,
-                it.optString("keywordDetail"), it.optString("priceDetail"))
+                it.optString("keywordDetail"), it.optString("priceDetail"), it.optBoolean("ipFallback"))
         }
         AppState(monitors, statuses,
             root.optJSONArray("alarms").objects().map(::event).associateBy { it.monitorId },
@@ -149,6 +149,7 @@ class MonitorRepository(context: Context) {
             .put("detail", s.detail).put("failures", s.failures).put("matched", s.matched).put("checks", s.checks).put("httpStatus", s.httpStatus)
             .put("connection", s.connection).put("networkTurn", s.networkTurn)
             .put("wifiIpTurn", s.wifiIpTurn).put("routeNote", s.routeNote)
+            .put("ipFallback", s.ipFallback)
             .put("keywordMatched", s.keywordMatched).put("priceMatched", s.priceMatched)
             .put("keywordDetail", s.keywordDetail).put("priceDetail", s.priceDetail)
         }))

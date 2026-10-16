@@ -121,6 +121,19 @@ class AlertReducerTest {
         assertEquals(listOf("Mobile data", "Wi-Fi • IPv6"), check(failedAgain, false).history.map { it.connection })
     }
 
+    @Test fun `successful IP fallback is silent and its mark clears on a normal check`() {
+        val fallback = AlertReducer.record(initial, monitor, CheckResult(false, "Missing"), null, 1000, 2000,
+            connection = "Wi-Fi • IPv4", ipFallback = true)
+        assertTrue(fallback.statuses.getValue(monitor.id).ipFallback)
+        assertEquals(0, fallback.statuses.getValue(monitor.id).failures)
+        assertTrue(fallback.history.isEmpty())
+        assertTrue(fallback.alarms.isEmpty())
+        val normal = AlertReducer.record(fallback, monitor, CheckResult(false, "Missing"), null, 2000, 3000,
+            connection = "Wi-Fi • IPv6")
+        assertFalse(normal.statuses.getValue(monitor.id).ipFallback)
+        assertEquals("Wi-Fi • IPv6", normal.statuses.getValue(monitor.id).connection)
+    }
+
     @Test fun `late HTTP errors cannot enter activity after monitoring stops or changes`() {
         listOf(initial.copy(running = false), initial.copy(monitors = emptyList()),
             initial.copy(monitors = listOf(monitor.copy(enabled = false))),

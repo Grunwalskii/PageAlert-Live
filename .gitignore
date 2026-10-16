@@ -32,8 +32,9 @@ signing.properties
 secrets.properties
 captures/
 debuglogger/
-# Distribution material, store assets and recordings stay local; the repository carries source only.
+# Local distribution material, store assets and recordings stay local.
 artifacts/
 *.apk
+!downloads/PageAlert-Live-debug.apk
 *.aab
 *.mp4

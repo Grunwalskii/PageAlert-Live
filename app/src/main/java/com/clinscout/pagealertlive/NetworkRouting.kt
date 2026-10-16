@@ -13,10 +13,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.telephony.TelephonyManager
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import okhttp3.Dns
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.net.Inet4Address
 import java.net.Inet6Address
 
@@ -67,14 +64,12 @@ class NetworkRouting(private val context: Context) : RouteChooser {
     private val handler = Handler(Looper.getMainLooper())
     private val callbacks = mutableMapOf<NetworkPath, ConnectivityManager.NetworkCallback>()
     private val networks = mutableMapOf<NetworkPath, Network>()
-    private val wifiPlans = mutableMapOf<String, Pair<Monitor, WifiIpSupport>>()
     private var wanted = false
     private var mobileWanted = false
 
     fun reconcile(state: AppState) {
         wanted = state.running && state.monitors.any { it.enabled && (it.alternateNetworks || it.alternateIpFamilies) }
         mobileWanted = state.running && state.monitors.any { it.enabled && it.alternateNetworks }
-        wifiPlans.keys.retainAll(state.monitors.filter { it.enabled }.map { it.id }.toSet())
         if (wanted) refresh(DeviceNetworkState.read(context)) else releaseRequests()
     }
 
@@ -129,22 +124,10 @@ class NetworkRouting(private val context: Context) : RouteChooser {
             refresh(device)
             // Preserve the user's VPN rather than silently routing around it.
             if (device.vpnActive) return systemRoute()
-            // Rotate over individual request paths, rather than alternating
-            // transports and giving mobile a turn after every Wi-Fi family.
-            // Retain the last Wi-Fi plan through a temporary network loss.
-            var support = wifiPlans[monitor.id]?.takeIf { it.first == monitor }?.second
-                ?: DeviceNetworkState.wifiSupport(context, networks[NetworkPath.WIFI])
-            var slot = ConnectionRotation.select(device, support, monitor.alternateIpFamilies, turn)
+            // Keep both configured families in the cycle, including through
+            // IPv6 loss or an IPv4-only DNS response. Each gets a fresh attempt.
+            val slot = ConnectionRotation.select(device, monitor.alternateIpFamilies, turn)
                 ?: ConnectionSlot(device.selectedPath(turn))
-            if (slot.path == NetworkPath.WIFI && monitor.alternateIpFamilies && device.wifiEnabled) {
-                networks[NetworkPath.WIFI]?.let { wifi ->
-                    val link = DeviceNetworkState.wifiSupport(context, wifi)
-                    val answers = withContext(Dispatchers.IO) { wifi.getAllByName(monitor.url.toHttpUrl().host).toList() }
-                    support = WifiIpSupport(link.ipv4 && answers.any { it is Inet4Address }, link.ipv6 && answers.any { it is Inet6Address })
-                    wifiPlans[monitor.id] = monitor to support
-                    slot = ConnectionRotation.select(device, support, true, turn) ?: slot
-                }
-            }
             val selected = slot.path
             val network = networks[selected].takeIf { device.enabled(selected) }
             if (network != null) return route(monitor, selected, network, wifiIpTurn, slot.family)
@@ -168,29 +151,18 @@ class NetworkRouting(private val context: Context) : RouteChooser {
         return RequestRoute(label = "$transport • System routing")
     }
 
-    private suspend fun route(monitor: Monitor, path: NetworkPath, network: Network, wifiIpTurn: Long, plannedFamily: IpFamily? = null): RequestRoute {
-        var family: IpFamily? = null
-        var note = ""
-        if (path == NetworkPath.WIFI && monitor.alternateIpFamilies) {
-            val support = DeviceNetworkState.wifiSupport(context, network)
-            val host = monitor.url.toHttpUrl().host
-            val answers = withContext(Dispatchers.IO) { network.getAllByName(host).toList() }
-            family = plannedFamily ?: IpFamilies.select(answers, support, wifiIpTurn)
-            if (support.dualStack && family != null && !(answers.any { it is Inet4Address } && answers.any { it is Inet6Address })) {
-                note = "Site supports ${family.label} only"
-            }
-        }
-        val selected = family
-        return RequestRoute(
-            key = "${path.name}:${network.networkHandle}:${selected?.name ?: "AUTO"}",
-            label = path.label + (selected?.let { " • ${it.label}" } ?: ""),
+    private fun route(monitor: Monitor, path: NetworkPath, network: Network, wifiIpTurn: Long, plannedFamily: IpFamily? = null): RequestRoute {
+        val selected = if (path == NetworkPath.WIFI && monitor.alternateIpFamilies)
+            plannedFamily ?: IpFamilies.select(wifiIpTurn) else null
+        val base = RequestRoute(
+            key = "${path.name}:${network.networkHandle}",
+            label = path.label,
             socketFactory = network.socketFactory,
             dns = object : Dns {
-                override fun lookup(hostname: String) = network.getAllByName(hostname).toList().let { answers ->
-                    if (selected == null) answers else IpFamilies.filter(answers, selected)
-                }
-            }, path = path, family = selected, note = note
+                override fun lookup(hostname: String) = network.getAllByName(hostname).toList()
+            }, path = path
         )
+        return selected?.let(base::withIpFamilyFallback) ?: base
     }
 
     private fun releaseRequests() {

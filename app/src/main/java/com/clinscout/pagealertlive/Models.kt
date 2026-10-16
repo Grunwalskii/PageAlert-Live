@@ -68,7 +68,8 @@ data class MonitorStatus(
     val keywordMatched: Boolean? = null,
     val priceMatched: Boolean? = null,
     val keywordDetail: String = "",
-    val priceDetail: String = ""
+    val priceDetail: String = "",
+    val ipFallback: Boolean = false
 )
 enum class EventKind { ALERT, HTTP_ERROR }
 data class AlertEvent(val time: Long, val monitorId: String, val name: String, val detail: String,
@@ -159,7 +160,7 @@ object TriggerEvaluator {
 }
 
 object AlertReducer {
-    fun record(state: AppState, monitor: Monitor, result: CheckResult?, error: String?, now: Long, nextAt: Long, httpStatus: Int? = null, connection: String = "", networkTurn: Long? = null, wifiIpTurn: Long? = null, routeNote: String = ""): AppState {
+    fun record(state: AppState, monitor: Monitor, result: CheckResult?, error: String?, now: Long, nextAt: Long, httpStatus: Int? = null, connection: String = "", networkTurn: Long? = null, wifiIpTurn: Long? = null, routeNote: String = "", ipFallback: Boolean = false): AppState {
         if (!state.running || state.monitors.none { it == monitor && it.enabled }) return state
         val previous = state.statuses[monitor.id] ?: MonitorStatus()
         val status = previous.copy(
@@ -168,7 +169,7 @@ object AlertReducer {
             matched = result?.matched ?: previous.matched, checks = previous.checks + 1,
             httpStatus = if (error != null) httpStatus else null,
             connection = connection, networkTurn = networkTurn ?: previous.networkTurn,
-            wifiIpTurn = wifiIpTurn ?: previous.wifiIpTurn, routeNote = routeNote,
+            wifiIpTurn = wifiIpTurn ?: previous.wifiIpTurn, routeNote = routeNote, ipFallback = ipFallback,
             keywordMatched = result?.keywordMatched, priceMatched = result?.priceMatched,
             keywordDetail = result?.keywordDetail.orEmpty(), priceDetail = result?.priceDetail.orEmpty()
         )

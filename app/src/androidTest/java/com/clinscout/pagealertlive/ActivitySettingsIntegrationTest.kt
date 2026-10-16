@@ -3,6 +3,7 @@ package com.clinscout.pagealertlive
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.PowerManager
 import android.provider.Settings
@@ -96,8 +97,8 @@ class ActivitySettingsIntegrationTest {
             ui { click("Settings") }
             shell("screencap -p /sdcard/Download/pagealert-settings-111.png")
             val exempt = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
-            checkDestination(if (exempt) "Battery settings" else "Allow unrestricted battery use",
-                if (exempt) Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS else Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            assertEquals("package:${context.packageName}", checkDestination(
+                if (exempt) "Battery settings" else "Allow unrestricted battery use", "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL").dataString)
             assertEquals(context.packageName, checkDestination("Notification settings", Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .getStringExtra(Settings.EXTRA_APP_PACKAGE))
             listOf("Monitoring notification settings" to MonitorService.STATUS_CHANNEL,
@@ -116,6 +117,60 @@ class ActivitySettingsIntegrationTest {
             }
             shell("screencap -p /sdcard/Download/pagealert-settings-bottom-111.png")
         } finally { scenario.close(); instrumentation.removeMonitor(interceptor); context.repository.update(true) { AppState() } }
+    }
+
+    @Test fun unavailableBatteryPageFallsBackToThisAppsInfo() {
+        unlock()
+        context.repository.update(true) { AppState() }
+        for (failure in listOf(ActivityNotFoundException(), SecurityException())) {
+            val launched = mutableListOf<Intent>()
+            val interceptor = object : Instrumentation.ActivityMonitor() {
+                override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
+                    if (intent.action?.startsWith("android.settings.") != true) return null
+                    launched += Intent(intent)
+                    if (intent.action != Settings.ACTION_APPLICATION_DETAILS_SETTINGS) throw failure
+                    return Instrumentation.ActivityResult(Activity.RESULT_OK, null)
+                }
+            }
+            instrumentation.addMonitor(interceptor)
+            val scenario = ActivityScenario.launch(MainActivity::class.java)
+            try {
+                scenario.onActivity { click("Settings") }
+                instrumentation.waitForIdleSync()
+                scenario.onActivity {
+                    val exempt = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+                    click(if (exempt) "Battery settings" else "Allow unrestricted battery use")
+                }
+                assertEquals(listOf("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", "android.settings.APP_BATTERY_SETTINGS", Settings.ACTION_APPLICATION_DETAILS_SETTINGS), launched.map { it.action })
+                assertTrue(launched.all { it.dataString == "package:${context.packageName}" })
+            } finally { scenario.close(); instrumentation.removeMonitor(interceptor) }
+        }
+    }
+
+    @Test fun olderBatteryPageIsTriedWhenTheCurrentActionIsUnavailable() {
+        unlock()
+        context.repository.update(true) { AppState() }
+        val launched = mutableListOf<Intent>()
+        val interceptor = object : Instrumentation.ActivityMonitor() {
+            override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
+                if (intent.action?.startsWith("android.settings.") != true) return null
+                launched += Intent(intent)
+                if (intent.action == "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL") throw ActivityNotFoundException()
+                return Instrumentation.ActivityResult(Activity.RESULT_OK, null)
+            }
+        }
+        instrumentation.addMonitor(interceptor)
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        try {
+            scenario.onActivity { click("Settings") }
+            instrumentation.waitForIdleSync()
+            scenario.onActivity {
+                val exempt = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+                click(if (exempt) "Battery settings" else "Allow unrestricted battery use")
+            }
+            assertEquals(listOf("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", "android.settings.APP_BATTERY_SETTINGS"), launched.map { it.action })
+            assertTrue(launched.all { it.dataString == "package:${context.packageName}" })
+        } finally { scenario.close(); instrumentation.removeMonitor(interceptor) }
     }
 
     private fun unlock() { shell("input keyevent 224"); shell("wm dismiss-keyguard") }

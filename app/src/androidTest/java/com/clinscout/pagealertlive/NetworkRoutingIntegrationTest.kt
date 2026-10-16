@@ -125,7 +125,7 @@ class NetworkRoutingIntegrationTest {
         val server = server()
         val monitor = Monitor(name = "Both rotations", url = server.url("/").toString(), keyword = "not present", minSeconds = 1, maxSeconds = 1, alternateNetworks = true)
         val chooser = RouteChooser { _, turn, _, _, _ ->
-            val slot = ConnectionRotation.select(DeviceConnections(true, true), WifiIpSupport(true, true), true, turn)!!
+            val slot = ConnectionRotation.select(DeviceConnections(true, true), true, turn)!!
             val route = RequestRoute(label = slot.label, path = slot.path, family = slot.family)
             selected += route.label
             route

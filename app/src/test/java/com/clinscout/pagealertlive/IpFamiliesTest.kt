@@ -30,13 +30,9 @@ class IpFamiliesTest {
         }
     }
 
-    @Test fun `WiFi IP alternation uses its own turn counter and single stack sites keep working`() {
-        val dual = WifiIpSupport(true, true)
+    @Test fun `WiFi IP alternation uses its own turn counter without removing unavailable families`() {
         assertEquals(listOf(IpFamily.IPV4, IpFamily.IPV6, IpFamily.IPV4),
-            (0L..2L).map { IpFamilies.select(listOf(v4, v6), dual, it) })
-        assertEquals(IpFamily.IPV4, IpFamilies.select(listOf(v4), dual, 1))
-        assertEquals(IpFamily.IPV6, IpFamilies.select(listOf(v6), dual, 0))
-        assertEquals(IpFamily.IPV4, IpFamilies.select(listOf(v4, v6), WifiIpSupport(true, false), 1))
+            (0L..2L).map(IpFamilies::select))
     }
 
     @Test fun `family filtering never silently sends a request over the wrong family`() {

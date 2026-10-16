@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.NotificationManager
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -20,6 +21,9 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.text.InputType
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -234,7 +238,15 @@ class MainActivity : Activity() {
                 status?.connection?.ifBlank { null }
                     ?: if (monitor.alternateNetworks) "Wi-Fi / mobile" else "Wi-Fi IPv4 / IPv6"
             } else null
-            card.addView(text("Interval  ${interval(monitor)}" + (connection?.let { " • $it" } ?: ""), 12, muted).spaced(8))
+            val connectionLine = "Interval  ${interval(monitor)}" + (connection?.let { " • $it" } ?: "")
+            card.addView(text(connectionLine, 12, muted).apply {
+                if (status?.ipFallback == true && connection != null) {
+                    val family = IpFamily.entries.firstOrNull { connection.endsWith(" • ${it.label}") }
+                    if (family != null) text = SpannableString(connectionLine).apply {
+                        setSpan(ForegroundColorSpan(red), length - family.label.length, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                }
+            }.spaced(8))
             if (rotates) {
                 if (monitor.alternateNetworks && networkNote.isNotBlank()) card.addView(text(networkNote, 12, amber).spaced(4))
                 if (!status?.routeNote.isNullOrBlank()) card.addView(text(status!!.routeNote, 12, muted).spaced(4))
@@ -603,11 +615,18 @@ class MainActivity : Activity() {
     }
     private fun openAppSettings() = startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
     private fun openBatterySettings() {
-        val exempt = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
-        try {
-            startActivity(if (exempt) Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-            else Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:$packageName".toUri()))
-        } catch (_: Exception) { openAppSettings() }
+        // Open this app's Battery details, regardless of its Doze exemption.
+        // Support both current Android and older/OEM settings destinations.
+        for (action in listOf("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", "android.settings.APP_BATTERY_SETTINGS")) {
+            try {
+                startActivity(Intent(action, "package:$packageName".toUri()))
+                return
+            } catch (_: ActivityNotFoundException) {
+            } catch (_: SecurityException) {
+            }
+        }
+        openAppSettings()
+        toast("Open Battery, then allow unrestricted background use.")
     }
     private fun openChannelSettings(channel: String) {
         try {

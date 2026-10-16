@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.12-dev
+
+- Keep both configured Wi-Fi IP families in rotation, even when network detection or DNS temporarily reports only one. Retry the other family once after a connection failure, while preserving HTTP error and Retry-After handling.
+- Show the actual IP family in red when fallback was needed, without an extra notification or warning line. Clear the mark after a check succeeds without fallback.
+- Open this app's Battery details using current and older Android settings links, with this app's App info as the fallback.
+- Publish the debug APK under `downloads/` for sideload testing, without creating a GitHub release or changing the existing Google Play release link.
+
 ## 1.0.11
 
 - Changed the application ID and source namespace to `com.clinscout.pagealertlive` and renamed the internal application class and identifiers to PageAlert Live.
