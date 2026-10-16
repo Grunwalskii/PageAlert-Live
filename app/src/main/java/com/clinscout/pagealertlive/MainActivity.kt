@@ -23,6 +23,7 @@ import android.provider.Settings
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
+import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
@@ -214,7 +215,10 @@ class MainActivity : Activity() {
                 }
             })
             card.addView(title)
-            card.addView(text(monitor.url, 12, muted).spaced(8))
+            card.addView(text(monitor.url, 12, muted).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            }.spaced(8))
             val priceDetail = status?.takeIf { it.checkedAt > 0 && it.failures == 0 }?.let {
                 it.priceDetail.ifBlank { if (!monitor.usesKeyword) it.detail else "" }
             }?.takeIf { it.startsWith("Price ") && !it.startsWith("Price error:") }?.removePrefix("Price ")

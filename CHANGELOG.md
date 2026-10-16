@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.16-dev
+
+- Limit overview URLs to one line with an ellipsis for longer addresses. Editing and opening the page still use the full URL.
+
 ## 1.0.15-dev
 
 - Label IP fallback explicitly as "Fallback to IPv4" or "Fallback to IPv6", keeping only the IP-family segment red. Normal checks retain their usual label.

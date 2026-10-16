@@ -4,4 +4,4 @@ PageAlert Live monitors multiple websites for keywords, missing text, or price d
 
 [Get PageAlert Live on Google Play](https://play.google.com/store/apps/details?id=com.clinscout.pagealertlive) · [MIT License](LICENSE)
 
-[Download the development APK](https://github.com/Grunwalskii/PageAlert-Live/raw/refs/heads/main/downloads/PageAlert-Live-debug.apk) (`1.0.15-dev`, debug signed; [SHA-256](downloads/PageAlert-Live-debug.apk.sha256)). This APK is for sideload testing and is published as a repository file. The existing GitHub release continues to link to Google Play.
+[Download the development APK](https://github.com/Grunwalskii/PageAlert-Live/raw/refs/heads/main/downloads/PageAlert-Live-debug.apk) (`1.0.16-dev`, debug signed; [SHA-256](downloads/PageAlert-Live-debug.apk.sha256)). This APK is for sideload testing and is published as a repository file. The existing GitHub release continues to link to Google Play.
