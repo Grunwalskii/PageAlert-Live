@@ -22,8 +22,8 @@ android {
         applicationId = "com.clinscout.pagealertlive"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.0.13-dev"
+        versionCode = 15
+        versionName = "1.0.14-dev"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {

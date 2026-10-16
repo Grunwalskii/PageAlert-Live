@@ -87,7 +87,7 @@ class Crawler(private val client: OkHttpClient = defaultClient()) {
             // A server response (including Retry-After) is not a connection
             // failure. Only retry DNS/socket/TLS/read failures on the other family.
             if (error is CrawlException) throw error
-            val fallback = route.fallback?.copy(ipFallback = true) ?: throw error
+            val fallback = route.fallback?.copy(ipFallback = true, fallbackReason = ConnectionDebug.failure(error)) ?: throw error
             onRouteChanged(fallback)
             fetch(monitor, fallback) { TriggerEvaluator.evaluate(monitor, it) }
         }
@@ -202,12 +202,15 @@ class MonitorEngine(
             var retryAfter = 0L
             var httpStatus: Int? = null
             var route = RequestRoute()
+            var requested = route.label
+            var failureDetails = ""
             val interval = monitor.randomDelayMillis()
             val slotEnds = System.currentTimeMillis() + interval
             try {
                 route = routeChooser.choose(monitor, turn, wifiIpTurn, interval) { selected, dueAt ->
                     repository.waitForNetwork(monitor, selected, dueAt)
                 }
+                requested = route.label
                 var checked = false
                 while (!checked) {
                     // Waiting on one host must not consume permits needed by unrelated websites.
@@ -229,6 +232,7 @@ class MonitorEngine(
             }
             catch (failure: Exception) {
                 error = failure.message ?: "Network check failed."
+                failureDetails = ConnectionDebug.failure(failure)
                 retryAfter = (failure as? CrawlException)?.retryAfterMillis ?: 0
                 httpStatus = (failure as? CrawlException)?.httpStatus
                 if (retryAfter > 0) hostCooldowns[host] = max(hostCooldowns[host] ?: 0, System.currentTimeMillis() + retryAfter)
@@ -239,7 +243,9 @@ class MonitorEngine(
             val wait = max(intervalWait, max(backoff, retryAfter))
             turn++
             if (route.path == NetworkPath.WIFI && route.family != null) wifiIpTurn++
-            repository.record(monitor, result, error, System.currentTimeMillis() + wait, httpStatus, route.label, turn, wifiIpTurn, route.note, route.ipFallback)?.let(onHttpError)
+            val diagnostic = ConnectionDebug(System.currentTimeMillis(), requested, route.label,
+                failureDetails.ifBlank { "Success" }, route.fallbackReason, route.networkDetails)
+            repository.record(monitor, result, error, System.currentTimeMillis() + wait, httpStatus, route.label, turn, wifiIpTurn, route.note, route.ipFallback, diagnostic)?.let(onHttpError)
             delay(wait)
         }
     }

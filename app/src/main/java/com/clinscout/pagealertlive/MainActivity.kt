@@ -170,7 +170,7 @@ class MainActivity : Activity() {
         when (tab) {
             0 -> monitors(state)
             1 -> history(state)
-            else -> settings()
+            else -> settings(state)
         }
         content.addView(Space(this), LinearLayout.LayoutParams(1, dp(12)))
         scroll.post { scroll.scrollTo(0, oldY) }
@@ -298,7 +298,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun settings() {
+    private fun settings(state: AppState) {
         content.addView(text("Settings", 23, white, true).spaced())
         val exempt = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
         val notifications = notificationsReady()
@@ -311,6 +311,37 @@ class MainActivity : Activity() {
         reliability.addView(settingsButton(if (exempt) "Battery settings" else "Allow unrestricted battery use", !exempt) {
             openBatterySettings()
         }.spaced())
+        val networkDebug = section("Network diagnostics")
+        networkDebug.addView(text("Red IPv4/IPv6 means fallback was needed; the displayed family is the one used.", 13, muted).spaced(8))
+        val appVersion = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
+        val report = buildString {
+            appendLine("${getString(R.string.app_name)} $appVersion • $packageName")
+            appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) • ${Build.MANUFACTURER} ${Build.MODEL}")
+            appendLine("Current Wi-Fi status:")
+            appendLine(DeviceNetworkState.wifiDetails(this@MainActivity))
+            state.monitors.forEach { monitor ->
+                appendLine()
+                appendLine("Watchdog: ${monitor.name}")
+                appendLine("Host: ${monitor.url.toHttpUrlOrNull()?.host ?: "invalid URL"}")
+                appendLine("Network rotation: ${monitor.alternateNetworks} • IP rotation: ${monitor.alternateIpFamilies}")
+                val status = state.statuses[monitor.id]
+                appendLine("Last check:")
+                appendLine(status?.connectionDebug?.report() ?: "No connection debug recorded yet; wait for the next check.")
+                if (status?.lastIpFallback != null && status.lastIpFallback != status.connectionDebug) {
+                    appendLine("Last IP fallback (retained after later checks):")
+                    appendLine(status.lastIpFallback.report())
+                } else if (status?.ipFallback == true && status.connectionDebug == null) {
+                    appendLine("Fallback reason was not recorded by the older build; wait for the next fallback.")
+                }
+            }
+        }.trimEnd()
+        networkDebug.addView(text(report, 12, muted).apply { setTextIsSelectable(true); typeface = Typeface.MONOSPACE }.spaced(8))
+        networkDebug.addView(settingsButton("Refresh network info") { render(repository.state.value) }.spaced(8))
+        networkDebug.addView(settingsButton("Copy network debug info") {
+            getSystemService(android.content.ClipboardManager::class.java)
+                .setPrimaryClip(android.content.ClipData.newPlainText("PageAlert Live network debug", report))
+            toast("Network debug info copied.")
+        }.spaced(8))
         val notices = section("Notifications")
         notices.addView(text("${if (notifications) "✓" else "○"}  Notifications ${if (notifications) "enabled" else "need permission"}", 14, if (notifications) mint else amber).spaced())
         notices.addView(settingsButton("Notification settings") {
@@ -341,7 +372,7 @@ class MainActivity : Activity() {
         privacy.addView(text("No data is collected by the developer. No analytics or tracking. Settings and activity stay on your device.", 13, muted).spaced())
         privacy.addView(settingsButton("Privacy policy / Datenschutzerklärung") { showPrivacyPolicy() }.spaced())
         privacy.addView(settingsButton("Impressum") { showImpressum() }.spaced(8))
-        content.addView(text("${getString(R.string.app_name)} 1.0.11", 12, muted).spaced())
+        content.addView(text("${getString(R.string.app_name)} $appVersion", 12, muted).spaced())
     }
 
     private fun showPrivacyPolicy() {

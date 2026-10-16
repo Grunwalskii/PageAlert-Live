@@ -27,14 +27,17 @@ object IpFamilies {
     // remove a configured family's future attempts from the rotation.
     fun select(wifiTurn: Long): IpFamily = if (wifiTurn % 2 == 0L) IpFamily.IPV4 else IpFamily.IPV6
 
-    fun filter(answers: List<InetAddress>, family: IpFamily): List<InetAddress> = answers.filter {
+    fun filter(answers: List<InetAddress>, family: IpFamily, hostname: String = "this host"): List<InetAddress> = answers.filter {
         if (family == IpFamily.IPV4) it is Inet4Address else it is Inet6Address
-    }.ifEmpty { throw UnknownHostException("No ${family.label} DNS address for this host. Will retry on its next turn.") }
+    }.ifEmpty { throw UnknownHostException("No ${family.label} DNS address for $hostname. DNS returned IPv4=${answers.count { it is Inet4Address }}, IPv6=${answers.count { it is Inet6Address }}.") }
 
     fun requireLiteralFamily(host: String, family: IpFamily) {
         // OkHttp bypasses Dns.lookup for literal addresses, including redirects.
         if (':' in host || host.all { it in '0'..'9' || it == '.' }) {
-            filter(listOf(InetAddress.getByName(host)), family)
+            val address = InetAddress.getByName(host)
+            if ((family == IpFamily.IPV4 && address !is Inet4Address) || (family == IpFamily.IPV6 && address !is Inet6Address)) {
+                throw UnknownHostException("${family.label} cannot be used for literal IP address $host.")
+            }
         }
     }
 }
@@ -88,15 +91,17 @@ data class RequestRoute(
     val family: IpFamily? = null,
     val note: String = "",
     val fallback: RequestRoute? = null,
-    val ipFallback: Boolean = false
+    val ipFallback: Boolean = false,
+    val fallbackReason: String = "",
+    val networkDetails: String = ""
 ) {
     fun withIpFamilyFallback(preferred: IpFamily): RequestRoute {
         val resolver = requireNotNull(dns)
         fun single(family: IpFamily) = copy(
             key = "$key:${family.name}", label = "$label • ${family.label}",
             dns = object : Dns {
-                override fun lookup(hostname: String) = IpFamilies.filter(resolver.lookup(hostname), family)
-            }, family = family, fallback = null, ipFallback = false
+                override fun lookup(hostname: String) = IpFamilies.filter(resolver.lookup(hostname), family, hostname)
+            }, family = family, fallback = null, ipFallback = false, fallbackReason = ""
         )
         val other = if (preferred == IpFamily.IPV4) IpFamily.IPV6 else IpFamily.IPV4
         return single(preferred).copy(fallback = single(other))

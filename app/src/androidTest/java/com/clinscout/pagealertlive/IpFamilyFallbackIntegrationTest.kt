@@ -117,6 +117,9 @@ class IpFamilyFallbackIntegrationTest {
             val checks = synchronized(completed) { completed.take(6) }
             assertEquals(List(2) { listOf("Wi-Fi • IPv4", "Wi-Fi • IPv4", "Mobile data") }.flatten(), checks.map { it.connection })
             assertEquals(listOf(false, true, false, false, true, false), checks.map { it.ipFallback })
+            assertEquals("Wi-Fi • IPv6", checks[1].connectionDebug!!.requested)
+            assertEquals("Wi-Fi • IPv4", checks[1].connectionDebug!!.used)
+            assertTrue(checks[1].connectionDebug!!.fallbackReason.contains("DNS returned IPv4=1, IPv6=0"))
             assertTrue(checks.all { it.failures == 0 && it.httpStatus == null && it.routeNote.isBlank() })
             assertEquals(0, callbacks.get())
             assertTrue(v6Lookups.get() >= 2)
@@ -125,6 +128,8 @@ class IpFamilyFallbackIntegrationTest {
             val saved = MonitorRepository(context).state.value.statuses.getValue(monitor.id)
             assertEquals(6L, saved.networkTurn)
             assertEquals(4L, saved.wifiIpTurn)
+            assertEquals("Mobile data", saved.connectionDebug!!.used)
+            assertEquals(checks[4].connectionDebug, saved.lastIpFallback)
         } finally {
             instrumentation.runOnMainSync {
                 scope.cancel()

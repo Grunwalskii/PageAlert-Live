@@ -8,6 +8,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.Handler
+import android.os.Build
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
@@ -53,6 +54,37 @@ object DeviceNetworkState {
 
     internal fun wifiNetwork(active: Network?, available: List<Network>, isWifi: (Network) -> Boolean): Network? =
         (listOfNotNull(active) + available).distinct().firstOrNull(isWifi)
+
+    fun wifiDetails(context: Context): String {
+        val manager = context.getSystemService(ConnectivityManager::class.java)
+        val active = manager.activeNetwork
+        val wifi = wifiNetwork(active, manager.allNetworks.toList()) { isWifi(manager.getNetworkCapabilities(it)) }
+        return "VPN active: ${manager.getNetworkCapabilities(active)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true}\n" +
+            "Default network: ${active?.networkHandle ?: "none"}\nWi-Fi:\n${networkDetails(context, wifi)}"
+    }
+
+    fun networkDetails(context: Context, network: Network?): String {
+        if (network == null) return "Network unavailable"
+        val manager = context.getSystemService(ConnectivityManager::class.java)
+        val capabilities = manager.getNetworkCapabilities(network)
+        val link = manager.getLinkProperties(network) ?: return "Network ${network.networkHandle}: link properties unavailable"
+        val v4Default = link.routes.any { it.isDefaultRoute && it.destination.address is Inet4Address }
+        val v6Default = link.routes.any { it.isDefaultRoute && it.destination.address is Inet6Address }
+        val support = WifiIpSupport.detect(link.linkAddresses.map { it.address }, v4Default, v6Default)
+        return buildList {
+            add("Network: ${network.networkHandle} • Interface: ${link.interfaceName ?: "unknown"}")
+            add("Validated: ${capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true}")
+            add("IPv4 usable: ${support.ipv4} • IPv6 usable: ${support.ipv6}")
+            add("IPv4 default route: ${if (v4Default) "present" else "missing"}")
+            add("IPv6 default route: ${if (v6Default) "present" else "missing"}")
+            add("Addresses: ${link.linkAddresses.take(12).joinToString().ifBlank { "none" }}")
+            add("Default routes: ${link.routes.filter { it.isDefaultRoute }.take(6).joinToString().ifBlank { "none" }}")
+            add("DNS servers: ${link.dnsServers.take(6).joinToString { it.hostAddress.orEmpty() }.ifBlank { "none" }}")
+            if (Build.VERSION.SDK_INT >= 28) {
+                add("Private DNS: ${if (link.isPrivateDnsActive) "active" else "inactive"} • ${link.privateDnsServerName ?: "automatic/not specified"}")
+            }
+        }.joinToString("\n").take(4096)
+    }
 
     private fun isWifi(capabilities: NetworkCapabilities?) = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true &&
         !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
@@ -139,16 +171,17 @@ class NetworkRouting(private val context: Context) : RouteChooser {
     }
 
     private fun systemRoute(): RequestRoute {
-        val capabilities = manager.getNetworkCapabilities(manager.activeNetwork)
+        val active = manager.activeNetwork
+        val capabilities = manager.getNetworkCapabilities(active)
         val transport = when {
             capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true -> "VPN"
             capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "Wi-Fi"
             capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile data"
             capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "Ethernet"
-            else -> return RequestRoute()
+            else -> return RequestRoute(networkDetails = DeviceNetworkState.networkDetails(context, active))
         }
         // Capture the transport when selecting the check; keep Android's routing unchanged.
-        return RequestRoute(label = "$transport • System routing")
+        return RequestRoute(label = "$transport • System routing", networkDetails = DeviceNetworkState.networkDetails(context, active))
     }
 
     private fun route(monitor: Monitor, path: NetworkPath, network: Network, wifiIpTurn: Long, plannedFamily: IpFamily? = null): RequestRoute {
@@ -160,7 +193,7 @@ class NetworkRouting(private val context: Context) : RouteChooser {
             socketFactory = network.socketFactory,
             dns = object : Dns {
                 override fun lookup(hostname: String) = network.getAllByName(hostname).toList()
-            }, path = path
+            }, path = path, networkDetails = DeviceNetworkState.networkDetails(context, network)
         )
         return selected?.let(base::withIpFamilyFallback) ?: base
     }

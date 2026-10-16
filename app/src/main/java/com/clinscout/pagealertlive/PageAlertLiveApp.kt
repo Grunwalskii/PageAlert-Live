@@ -93,10 +93,10 @@ class MonitorRepository(context: Context) {
         }
     }
 
-    fun record(monitor: Monitor, result: CheckResult?, error: String?, nextAt: Long, httpStatus: Int? = null, connection: String = "", networkTurn: Long? = null, wifiIpTurn: Long? = null, routeNote: String = "", ipFallback: Boolean = false): AlertEvent? {
+    fun record(monitor: Monitor, result: CheckResult?, error: String?, nextAt: Long, httpStatus: Int? = null, connection: String = "", networkTurn: Long? = null, wifiIpTurn: Long? = null, routeNote: String = "", ipFallback: Boolean = false, connectionDebug: ConnectionDebug? = null): AlertEvent? {
         var httpEvent: AlertEvent? = null
         update(result?.matched == true || httpStatus != null) { state ->
-            val next = AlertReducer.record(state, monitor, result, error, System.currentTimeMillis(), nextAt, httpStatus, connection, networkTurn, wifiIpTurn, routeNote, ipFallback)
+            val next = AlertReducer.record(state, monitor, result, error, System.currentTimeMillis(), nextAt, httpStatus, connection, networkTurn, wifiIpTurn, routeNote, ipFallback, connectionDebug)
             httpEvent = next.history.firstOrNull()?.takeIf { it.kind == EventKind.HTTP_ERROR && it !== state.history.firstOrNull() }
             next
         }
@@ -118,7 +118,8 @@ class MonitorRepository(context: Context) {
             it.getString("id") to MonitorStatus(it.optLong("checkedAt"), it.optLong("nextAt"), it.optString("detail"), it.optInt("failures"), it.optBoolean("matched"), it.optLong("checks"), it.optInt("httpStatus").takeIf { code -> code > 0 }, it.optString("connection"), it.optLong("networkTurn"), it.optLong("wifiIpTurn"), it.optString("routeNote"),
                 if (it.has("keywordMatched") && !it.isNull("keywordMatched")) it.getBoolean("keywordMatched") else null,
                 if (it.has("priceMatched") && !it.isNull("priceMatched")) it.getBoolean("priceMatched") else null,
-                it.optString("keywordDetail"), it.optString("priceDetail"), it.optBoolean("ipFallback"))
+                it.optString("keywordDetail"), it.optString("priceDetail"), it.optBoolean("ipFallback"),
+                connectionDebug(it.optJSONObject("connectionDebug")), connectionDebug(it.optJSONObject("lastIpFallback")))
         }
         AppState(monitors, statuses,
             root.optJSONArray("alarms").objects().map(::event).associateBy { it.monitorId },
@@ -131,6 +132,15 @@ class MonitorRepository(context: Context) {
 
     private fun event(item: JSONObject) = AlertEvent(item.getLong("time"), item.getString("id"), item.getString("name"), item.getString("detail"), EventKind.valueOf(item.optString("kind", "ALERT")), item.optString("connection"))
     private fun eventJson(event: AlertEvent) = JSONObject().put("time", event.time).put("id", event.monitorId).put("name", event.name).put("detail", event.detail).put("kind", event.kind.name).put("connection", event.connection)
+
+    private fun connectionDebug(item: JSONObject?): ConnectionDebug? = item?.let {
+        ConnectionDebug(it.optLong("checkedAt"), it.optString("requested"), it.optString("used"),
+            it.optString("outcome"), it.optString("fallbackReason"), it.optString("network"))
+    }
+
+    private fun connectionDebugJson(debug: ConnectionDebug): JSONObject = JSONObject()
+        .put("checkedAt", debug.checkedAt).put("requested", debug.requested).put("used", debug.used)
+        .put("outcome", debug.outcome).put("fallbackReason", debug.fallbackReason).put("network", debug.network)
 
     private fun serialize(state: AppState): JSONObject = JSONObject()
         .put("running", state.running)
@@ -150,6 +160,8 @@ class MonitorRepository(context: Context) {
             .put("connection", s.connection).put("networkTurn", s.networkTurn)
             .put("wifiIpTurn", s.wifiIpTurn).put("routeNote", s.routeNote)
             .put("ipFallback", s.ipFallback)
+            .put("connectionDebug", s.connectionDebug?.let(::connectionDebugJson))
+            .put("lastIpFallback", s.lastIpFallback?.let(::connectionDebugJson))
             .put("keywordMatched", s.keywordMatched).put("priceMatched", s.priceMatched)
             .put("keywordDetail", s.keywordDetail).put("priceDetail", s.priceDetail)
         }))

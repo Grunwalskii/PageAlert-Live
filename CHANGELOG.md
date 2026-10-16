@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.14-dev
+
+- Add Settings → Network diagnostics with the requested/used connection, original fallback exception and cause, outcome, timestamp, and Wi-Fi address/route/DNS details.
+- Retain each watchdog's last IP fallback across later successful/mobile checks and app restarts. Diagnostics stay local and can be copied manually; no extra network probes or notifications are added.
+- Explain that the red IP label marks fallback, include DNS answer counts for missing-family errors, and show the installed version in Settings.
+
 ## 1.0.13-dev
 
 - Raise the HTML/text response limit from 2 MiB to 16 MiB, including for chunked and gzip-compressed responses.

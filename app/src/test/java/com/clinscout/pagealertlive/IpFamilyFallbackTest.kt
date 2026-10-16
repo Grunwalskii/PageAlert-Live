@@ -44,6 +44,10 @@ class IpFamilyFallbackTest {
                 assertFalse(crawler.check(monitor, route, changes::add).matched)
                 val actual = changes.single()
                 assertTrue(actual.ipFallback)
+                assertTrue(actual.fallbackReason.contains("UnknownHostException"))
+                assertTrue(actual.fallbackReason.contains("families.test"))
+                assertTrue(actual.fallbackReason.contains("IPv4=${if (preferred == IpFamily.IPV4) 0 else 1}"))
+                assertTrue(actual.fallbackReason.contains("IPv6=${if (preferred == IpFamily.IPV4) 1 else 0}"))
                 assertEquals(if (preferred == IpFamily.IPV4) IpFamily.IPV6 else IpFamily.IPV4, actual.family)
                 assertEquals("Wi-Fi • ${actual.family!!.label}", actual.label)
                 assertEquals(if (preferred == IpFamily.IPV4) 0 else 1, v4Server.requestCount)
@@ -82,6 +86,7 @@ class IpFamilyFallbackTest {
                 assertEquals(listOf(v6, v4), connections)
                 assertEquals(IpFamily.IPV4, actual.family)
                 assertTrue(actual.ipFallback)
+                assertTrue(actual.fallbackReason.contains("ConnectException"))
                 assertEquals(1, server.requestCount)
             } finally { crawler.close().join() }
         }
