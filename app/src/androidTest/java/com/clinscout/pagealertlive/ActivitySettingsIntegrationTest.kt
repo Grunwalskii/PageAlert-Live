@@ -158,8 +158,8 @@ class ActivitySettingsIntegrationTest {
     @Test fun batteryDetailsSupportsXiaomiAndFallsBackOnOtherPhones() {
         unlock()
         context.repository.update(true) { AppState() }
-        // Cover the Poco route, both Android routes, and a restricted OEM fallback.
-        val actions = listOf("miui.intent.action.HIDDEN_APPS_CONFIG_ACTIVITY", "android.settings.APP_BATTERY_SETTINGS",
+        // HyperOS usage details must precede the older PowerKeeper policy page.
+        val actions = listOf(null, "miui.intent.action.HIDDEN_APPS_CONFIG_ACTIVITY", "android.settings.APP_BATTERY_SETTINGS",
             "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
         for (accepted in actions.indices) {
             val launched = mutableListOf<Intent>()
@@ -187,10 +187,16 @@ class ActivitySettingsIntegrationTest {
                     click("Battery details (Akkudetails)")
                 }
                 assertEquals(actions.take(accepted + 1), launched.map { it.action })
-                assertEquals("com.miui.powerkeeper/com.miui.powerkeeper.ui.HiddenAppsConfigActivity", launched.first().component?.flattenToString())
+                assertEquals("com.miui.securitycenter/com.miui.powercenter.legacypowerrank.PowerDetailActivity", launched.first().component?.flattenToString())
                 assertEquals(context.packageName, launched.first().getStringExtra("package_name"))
                 assertEquals(context.getString(R.string.app_name), launched.first().getStringExtra("package_label"))
-                launched.drop(1).forEach { assertEquals("package:${context.packageName}", it.dataString) }
+                assertEquals(context.applicationInfo.uid, launched.first().getIntExtra("uid", -1))
+                if (accepted >= 1) {
+                    assertEquals("com.miui.powerkeeper/com.miui.powerkeeper.ui.HiddenAppsConfigActivity", launched[1].component?.flattenToString())
+                    assertEquals(context.packageName, launched[1].getStringExtra("package_name"))
+                    assertEquals(context.getString(R.string.app_name), launched[1].getStringExtra("package_label"))
+                }
+                launched.drop(2).forEach { assertEquals("package:${context.packageName}", it.dataString) }
             } finally { scenario.close(); instrumentation.removeMonitor(interceptor) }
         }
     }
@@ -228,7 +234,7 @@ class ActivitySettingsIntegrationTest {
             val launched = mutableListOf<Intent>()
             val interceptor = object : Instrumentation.ActivityMonitor() {
                 override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
-                    if (intent.action?.startsWith("android.settings.") != true && intent.component?.packageName != "com.miui.powerkeeper") return null
+                    if (intent.action?.startsWith("android.settings.") != true && intent.component?.packageName !in listOf("com.miui.securitycenter", "com.miui.powerkeeper")) return null
                     launched += Intent(intent)
                     return Instrumentation.ActivityResult(Activity.RESULT_OK, null)
                 }
@@ -239,7 +245,7 @@ class ActivitySettingsIntegrationTest {
                 scenario.onActivity { click("Settings") }
                 instrumentation.waitForIdleSync()
                 scenario.onActivity { click("Battery details (Akkudetails)") }
-                assertEquals("com.miui.powerkeeper", launched.single().component?.packageName)
+                assertEquals("com.miui.securitycenter/com.miui.powercenter.legacypowerrank.PowerDetailActivity", launched.single().component?.flattenToString())
                 launched.clear()
                 scenario.onActivity { click(if (exempt) "Battery settings" else "Allow unrestricted battery use") }
                 assertEquals(if (exempt) Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS else Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,

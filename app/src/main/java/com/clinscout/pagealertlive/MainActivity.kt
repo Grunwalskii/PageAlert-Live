@@ -683,9 +683,14 @@ class MainActivity : Activity() {
     }
     private fun openAppSettings() = startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
     private fun openBatteryDetails() {
-        // Xiaomi / Poco / Redmi expose their per-app restrictions separately.
+        // HyperOS usage details include CPU/data/battery usage and the per-app
+        // battery policy. PowerKeeper opens a different, older policy screen.
         // Try directly: package visibility can hide valid Settings activities.
         val destinations = listOf(
+            Intent().setClassName("com.miui.securitycenter", "com.miui.powercenter.legacypowerrank.PowerDetailActivity")
+                .putExtra("package_name", packageName)
+                .putExtra("package_label", getString(R.string.app_name))
+                .putExtra("uid", applicationInfo.uid),
             Intent("miui.intent.action.HIDDEN_APPS_CONFIG_ACTIVITY")
                 .setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
                 .putExtra("package_name", packageName)

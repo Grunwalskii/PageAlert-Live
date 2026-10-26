@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.21
+
+- Point Battery details (Akkudetails) first to Xiaomi/HyperOS Security Center's per-app PowerDetailActivity, the usage-detail screen with CPU/data/battery statistics and battery restrictions. Pass this app's package, label, and UID.
+- Retain the older PowerKeeper policy screen and standard Android battery pages as fallbacks when the usage-detail activity is absent or restricted.
+
 ## 1.0.20
 
 - Enable Require both conditions to match by default for new keyword-and-price watchdogs and when adding a second condition to an existing single-condition watchdog.
