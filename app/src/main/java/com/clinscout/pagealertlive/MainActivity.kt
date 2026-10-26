@@ -80,22 +80,34 @@ class MainActivity : Activity() {
                 insets
             }
         }
-        val header = row().apply { setPadding(dp(24), dp(20), dp(24), dp(12)) }
+        val header = row().apply { setPadding(dp(12), dp(2), dp(12), dp(2)) }
         val logo = ImageView(this).apply { setImageResource(R.drawable.ic_radar); contentDescription = getString(R.string.app_icon_description) }
-        header.addView(logo, LinearLayout.LayoutParams(dp(42), dp(42)))
-        header.addView(text(getString(R.string.app_name), 25, white, true).apply { setPadding(dp(10), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
-        statePill = text("IDLE", 11, muted, true).apply { setPadding(dp(12), dp(7), dp(12), dp(7)); background = shape(panel, 20) }
+        header.addView(logo, LinearLayout.LayoutParams(dp(30), dp(30)))
+        header.addView(text(getString(R.string.app_name), 22, white, true).apply {
+            setPadding(dp(8), 0, dp(8), 0)
+            includeFontPadding = false
+            maxLines = 1
+            setAutoSizeTextTypeUniformWithConfiguration(16, 22, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        statePill = text("IDLE", 11, muted, true).apply {
+            includeFontPadding = false
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+            background = shape(panel, 20)
+        }
         header.addView(statePill)
         root.addView(header)
-        val tabs = row().apply { setPadding(dp(18), 0, dp(18), dp(8)) }
+        val tabs = row().apply { setPadding(dp(12), 0, dp(12), dp(2)) }
         listOf("Monitors", "Events", "Settings").forEachIndexed { index, label ->
             val tabButton = button(label, false) {
                 if (tab != index) scroll.scrollTo(0, 0)
                 tab = index
                 render(repository.state.value)
+            }.apply {
+                minHeight = dp(32); minimumHeight = dp(32)
+                includeFontPadding = false
             }
             tabButtons += tabButton
-            tabs.addView(tabButton, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(4) })
+            tabs.addView(tabButton, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(if (index < 2) 4 else 0) })
         }
         root.addView(tabs)
         scroll = ScrollView(this).apply { isFillViewport = true; clipToPadding = false }
@@ -141,11 +153,11 @@ class MainActivity : Activity() {
         }
         val oldY = scroll.scrollY
         val horizontalPadding = dp(if (tab == 0) 12 else 24)
-        content.setPadding(horizontalPadding, dp(12), horizontalPadding, dp(12))
+        content.setPadding(horizontalPadding, dp(if (tab == 0) 4 else 8), horizontalPadding, dp(12))
         content.removeAllViews()
         timeLabels.clear()
         val live = state.running && state.serviceAlive
-        statePill.text = if (state.alarms.isNotEmpty()) "ALARM" else if (live) "LIVE" else if (state.running) "RESUME" else "IDLE"
+        statePill.text = if (state.alarms.isNotEmpty()) "ALARM" else if (live) "LIVE" else if (state.running) "PAUSED" else "IDLE"
         statePill.setTextColor(if (state.alarms.isNotEmpty()) red else if (live) mint else muted)
         controls.text = if (live) "Stop monitoring & disarm" else if (state.running) "Resume monitoring" else "Start monitoring"
         if (state.alarms.isNotEmpty()) {
@@ -186,20 +198,28 @@ class MainActivity : Activity() {
     private fun monitors(state: AppState) {
         val networkNote = if (state.monitors.any { it.alternateNetworks }) DeviceNetworkState.read(this).note else ""
         val heading = row()
-        val summary = row()
-        summary.addView(text("Your monitors", 21, white, true))
+        val summary = row().apply { gravity = Gravity.BOTTOM; isBaselineAligned = false }
+        val headingLabel = text("Your monitors", 21, white, true).apply { includeFontPadding = false }
+        summary.addView(headingLabel)
         val enabled = state.monitors.count { it.enabled }
         val checks = state.statuses.values.sumOf { it.checks }
         summary.addView(text("$enabled enabled · $checks checks", 12, muted).apply {
             maxLines = 2
-            setPadding(dp(8), 0, dp(8), 0)
+            includeFontPadding = false
+            // Align the last text baseline even if larger fonts wrap the counts.
+            val bottomInset = (headingLabel.paint.fontMetricsInt.descent - paint.fontMetricsInt.descent).coerceAtLeast(0)
+            setPadding(dp(8), 0, dp(8), bottomInset)
         }, LinearLayout.LayoutParams(0, -2, 1f))
         heading.addView(summary, LinearLayout.LayoutParams(0, -2, 1f))
         heading.addView(button("+ Add", true) { editor(null) }.apply {
             minWidth = 0; minimumWidth = 0
+            minHeight = dp(32); minimumHeight = dp(32)
+            includeFontPadding = false
+            maxLines = 1
+            setAutoSizeTextTypeUniformWithConfiguration(11, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
             setPadding(dp(8), dp(4), dp(8), dp(4))
-        }, LinearLayout.LayoutParams(dp(64), dp(44)))
-        content.addView(heading.spaced(12))
+        }, LinearLayout.LayoutParams(dp(64), -2))
+        content.addView(heading)
         if (state.monitors.isEmpty()) {
             val empty = card()
             empty.addView(text("Watch for the moment that matters.", 22, white, true))
@@ -319,7 +339,7 @@ class MainActivity : Activity() {
             }
             watchdogCard.addView(View(this).apply { setBackgroundColor(dividerColor) }, LinearLayout.LayoutParams(-1, dp(1)))
             watchdogCard.addView(actions, LinearLayout.LayoutParams(-1, dp(48)))
-            content.addView(watchdogCard.spaced(12))
+            content.addView(watchdogCard.spaced(if (monitor == state.monitors.first()) 6 else 12))
         }
     }
 

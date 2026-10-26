@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.28
+
+- Reduce the normal Monitors top area by about half: remove excess space above the app identity, compact the header and tabs, and tighten the gaps around Your monitors and the first watchdog card.
+- Bottom-align the enabled/check counts with Your monitors. Allow compact controls to grow with larger text settings.
+- Label the paused monitoring status PAUSED instead of RESUME; keep Resume monitoring as the action button.
+
 ## 1.0.27
 
 - Validate returned HTML for challenge forms, WAF response headers, rate-limit pages, temporary errors, and Amazon product identity/sign-in mismatches before evaluating alerts.
