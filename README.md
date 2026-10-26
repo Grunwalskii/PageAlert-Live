@@ -6,4 +6,6 @@ PageAlert Live monitors multiple websites for keywords, missing text, or price d
 
 [Download the signed release APK](https://github.com/Grunwalskii/PageAlert-Live/releases/download/v1.0.17/PageAlert-Live-1.0.17.apk) (`1.0.17`; [SHA-256](https://github.com/Grunwalskii/PageAlert-Live/releases/download/v1.0.17/PageAlert-Live-1.0.17.apk.sha256)). This APK uses the app's dedicated private upload key instead of the debug key.
 
-Android only accepts an update with a compatible signing certificate. Google Play may sign its installations with a separate app signing key, so this GitHub APK is not guaranteed to update the Play Store version. If Android reports a package conflict, keep your existing app installed: version 1.0.11 has no export option and disables Android backup, and uninstalling deletes its local alerts and settings. Use a matching Play-signed update to preserve that data. The earlier debug APK also uses a different certificate.
+This GitHub APK cannot update the Play Store version: its upload signing certificate differs from Google Play's app signing certificate. Keep your existing app installed: version 1.0.11 has no export option and disables Android backup, and uninstalling deletes its local alerts and settings. Use a Play-signed update to preserve that data. The earlier debug APK also uses a different certificate.
+
+Google Play app signing certificate SHA-256: `9B:C6:2C:60:4B:5C:F3:66:B7:9D:91:CF:1B:A6:A0:D4:BD:01:61:24:FD:E5:D3:51:B9:1D:5A:FF:26:CC:69:D1`.

@@ -3,7 +3,7 @@
 ## 1.0.17
 
 - Publish a release APK signed with the app's dedicated private upload key, replacing the debug-signed APK as the recommended GitHub download.
-- Updating an existing installation requires a matching app signing certificate. Google Play may use a different distribution key; the upload-signed APK is not guaranteed to update a Play Store installation. Keep the existing app installed to preserve its local data.
+- The upload-signed APK cannot update a Play Store installation: Google Play uses a different app signing certificate. Keep the existing app installed and use a Play-signed update to preserve its local data.
 
 ## 1.0.16-dev
 
