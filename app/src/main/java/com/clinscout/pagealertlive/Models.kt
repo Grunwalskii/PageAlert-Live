@@ -27,7 +27,7 @@ data class Monitor(
     val alternateIpFamilies: Boolean = true,
     val checkPrice: Boolean = false,
     val priceSelector: String = "",
-    val requireAllConditions: Boolean = false
+    val requireAllConditions: Boolean = true
 ) {
     val usesKeyword get() = trigger != Trigger.PRICE
     val usesPrice get() = trigger == Trigger.PRICE || checkPrice

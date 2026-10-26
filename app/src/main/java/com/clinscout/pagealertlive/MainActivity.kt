@@ -498,7 +498,8 @@ class MainActivity : Activity() {
         prices.addView(findPrice.spaced(6))
         prices.addView(pricePreview)
         priceSection.addView(prices)
-        val requireBoth = editorCheck("Require both conditions to match", existing?.requireAllConditions ?: false)
+        val requireBoth = editorCheck("Require both conditions to match",
+            existing?.takeIf { it.usesKeyword && it.usesPrice }?.requireAllConditions ?: true)
         form.addView(requireBoth.spaced(6))
         fun updateConditions() {
             keywords.visibility = if (keywordEnabled.isChecked) View.VISIBLE else View.GONE
@@ -592,7 +593,7 @@ class MainActivity : Activity() {
                     alternateNetworks = alternate.isChecked,
                     alternateIpFamilies = ipFamilies.isChecked,
                     checkPrice = priceEnabled.isChecked, priceSelector = priceSelector.text.toString().trim(),
-                    requireAllConditions = keywordEnabled.isChecked && priceEnabled.isChecked && requireBoth.isChecked
+                    requireAllConditions = requireBoth.isChecked
                 )
                 val error = monitor.validate()
                 if (error != null) { errors.text = error; return@setOnClickListener }

@@ -5,8 +5,20 @@ import org.junit.Test
 
 class CombinedConditionsTest {
     private val monitor = Monitor(name = "Both", url = "https://example.com", keyword = "in stock", selector = "#stock",
-        checkPrice = true, priceSelector = "#price", threshold = "50")
+        checkPrice = true, priceSelector = "#price", threshold = "50", requireAllConditions = false)
     private val html = "<p id='stock'>In stock</p><p id='price'>€99.00</p>"
+
+    @Test fun `default combined check rejects a misspelled keyword even when price matches`() {
+        val default = Monitor(name = "Delivery", url = "https://example.com", keyword = "Gewöhnlich versandfertiigg",
+            checkPrice = true, priceSelector = "#price", threshold = "100")
+        val page = "<p>Gewöhnlich versandfertig</p><p id='price'>€49.00</p>"
+        val result = TriggerEvaluator.evaluate(default, page)
+        assertFalse(result.matched)
+        assertEquals(false, result.keywordMatched)
+        assertEquals(true, result.priceMatched)
+        assertTrue(TriggerEvaluator.evaluate(default.copy(keyword = "Gewöhnlich versandfertig"), page).matched)
+        assertTrue(TriggerEvaluator.evaluate(default.copy(requireAllConditions = false), page).matched)
+    }
 
     @Test fun `either rule can alert independently and requiring both waits for both`() {
         val either = TriggerEvaluator.evaluate(monitor, html)

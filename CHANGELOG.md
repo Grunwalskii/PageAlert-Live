@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.20
+
+- Enable Require both conditions to match by default for new keyword-and-price watchdogs and when adding a second condition to an existing single-condition watchdog.
+- Preserve the saved both/either choice when editing or duplicating existing combined watchdogs. Existing watchdogs retain their configured behavior until edited.
+
 ## 1.0.19
 
 - Restore the Battery settings destination from 1.0.11: request Android's battery-optimization exemption when needed, or open the optimization exemption list when already exempt. If the direct request is unavailable, try the list before app settings.

@@ -42,7 +42,7 @@ class PricePickerIntegrationTest {
                 field("e.g. In stock").setText("in stock")
                 check("Check price").isChecked = true
                 field("e.g. 99.99").setText("100")
-                check("Require both conditions to match").isChecked = true
+                assertTrue("New combined checks must require both by default", check("Require both conditions to match").isChecked)
                 click("Find prices on page")
             }
             await {
@@ -110,6 +110,31 @@ class PricePickerIntegrationTest {
             assertNull(monitor.validate())
             assertTrue(TriggerEvaluator.evaluate(monitor, "<p id='price'>€50.00</p>").matched)
         } finally { scenario.close(); context.repository.update(true) { AppState() } }
+    }
+
+    @Test fun addingASecondConditionDefaultsToBothAndExistingEitherChoiceSurvivesEditing() {
+        shell("input keyevent 224"); shell("wm dismiss-keyguard")
+        val keywordOnly = Monitor(name = "Existing", url = "https://example.com", keyword = "stock",
+            threshold = "100", priceSelector = "#price", requireAllConditions = false)
+        val cases = listOf(keywordOnly to true, keywordOnly.copy(trigger = Trigger.PRICE) to true,
+            keywordOnly.copy(checkPrice = true) to false)
+        for ((existing, expected) in cases) {
+            context.repository.update(true) { AppState(monitors = listOf(existing)) }
+            val scenario = ActivityScenario.launch(MainActivity::class.java)
+            fun ui(action: () -> Unit) { scenario.onActivity { action() }; instrumentation.waitForIdleSync() }
+            try {
+                ui { click("Edit") }
+                ui {
+                    check("Check keyword").isChecked = true
+                    check("Check price").isChecked = true
+                    assertEquals(expected, check("Require both conditions to match").isChecked)
+                    click("Save")
+                }
+                val saved = MonitorRepository(context).state.value.monitors.single()
+                assertTrue(saved.usesKeyword && saved.usesPrice)
+                assertEquals(expected, saved.requireAllConditions)
+            } finally { scenario.close(); context.repository.update(true) { AppState() } }
+        }
     }
 
     private fun field(hint: String) = windows().filterIsInstance<EditText>().first { it.hint == hint }
