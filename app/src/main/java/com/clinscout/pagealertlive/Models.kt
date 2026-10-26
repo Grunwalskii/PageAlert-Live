@@ -52,7 +52,8 @@ data class Monitor(
 }
 
 data class CheckResult(val matched: Boolean, val detail: String, val keywordMatched: Boolean? = null,
-    val priceMatched: Boolean? = null, val keywordDetail: String = "", val priceDetail: String = "")
+    val priceMatched: Boolean? = null, val keywordDetail: String = "", val priceDetail: String = "",
+    val missingPageElement: String? = null, val pageRetries: Int = 0)
 data class MonitorStatus(
     val checkedAt: Long = 0,
     val nextAt: Long = 0,
@@ -124,16 +125,16 @@ object PriceParser {
 object TriggerEvaluator {
     fun evaluate(monitor: Monitor, html: String): CheckResult {
         val document = Jsoup.parse(html, monitor.url)
+        PageValidation.validate(document, monitor.url)
         document.select("script,style,noscript,template").remove()
         val bodyText = document.body().text()
-        require(bodyText.isNotBlank() || document.select("meta[itemprop=price],meta[property=product:price:amount]").isNotEmpty()) { "Empty page; no trigger evaluated." }
-        val challenge = document.title().lowercase()
-        require(listOf("just a moment", "access denied", "verify you are human", "attention required").none { challenge.contains(it) }) { "Website returned an access challenge." }
+        if (bodyText.isBlank() && document.select("meta[itemprop=price],meta[property=product:price:amount],meta[property=og:price:amount]").isEmpty())
+            throw PageValidationException("Empty page; no trigger evaluated.")
         var keywordDetail = ""
         var priceDetail = ""
         val keywordResult = if (monitor.usesKeyword) runCatching {
             val elements = if (monitor.selector.isNotBlank()) document.select(monitor.selector) else null
-            require(elements == null || elements.isNotEmpty()) { "CSS selector matched no elements." }
+            if (elements != null && elements.isEmpty()) throw MissingPageElementException("CSS selector matched no elements.")
             val found = (elements?.text() ?: bodyText).contains(monitor.keyword, ignoreCase = !monitor.caseSensitive)
             keywordDetail = "Keyword “${monitor.keyword}” ${if (found) "found" else "missing"}"
             if (monitor.trigger == Trigger.KEYWORD_PRESENT) found else !found
@@ -142,7 +143,7 @@ object TriggerEvaluator {
             val selector = monitor.effectivePriceSelector
             val candidates = if (selector.isNotBlank()) document.select(selector) else
                 document.select("meta[itemprop=price],meta[property=product:price:amount],meta[property=og:price:amount],[itemprop=price]")
-            require(candidates.isNotEmpty()) { if (selector.isBlank()) "No structured price found. Use Find prices on page to choose a price element." else "Price CSS selector matched no elements." }
+            if (candidates.isEmpty()) throw MissingPageElementException(if (selector.isBlank()) "No structured price found. Use Find prices on page to choose a price element." else "Price CSS selector matched no elements.")
             val prices = candidates.map { PriceDiscovery.read(it, monitor.numberFormat) }.distinct()
             require(prices.size == 1) { "Multiple different prices found. Use Find prices on page to select one price." }
             val price = prices.single()
@@ -157,7 +158,9 @@ object TriggerEvaluator {
         val matched = if (monitor.requireAllConditions) outcomes.all { it.getOrNull() == true }
             else outcomes.any { it.getOrNull() == true }
         return CheckResult(matched, listOf(keywordDetail, priceDetail).filter { it.isNotBlank() }.joinToString(" • "),
-            keywordResult?.getOrNull(), priceResult?.getOrNull(), keywordDetail, priceDetail)
+            keywordResult?.getOrNull(), priceResult?.getOrNull(), keywordDetail, priceDetail,
+            listOfNotNull(keywordResult?.exceptionOrNull(), priceResult?.exceptionOrNull())
+                .filterIsInstance<MissingPageElementException>().firstOrNull()?.message)
     }
 }
 

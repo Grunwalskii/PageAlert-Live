@@ -7,6 +7,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
@@ -81,23 +83,43 @@ class Crawler(private val client: OkHttpClient = defaultClient()) {
     }
 
     suspend fun check(monitor: Monitor, route: RequestRoute = RequestRoute(), onRouteChanged: (RequestRoute) -> Unit = {}): CheckResult {
-        return try {
-            fetch(monitor, route) { TriggerEvaluator.evaluate(monitor, it) }
-        } catch (error: IOException) {
-            // A server response (including Retry-After) is not a connection
-            // failure. Only retry DNS/socket/TLS/read failures on the other family.
-            if (error is CrawlException) throw error
-            val fallback = route.fallback?.copy(ipFallback = true, fallbackReason = ConnectionDebug.failure(error)) ?: throw error
-            onRouteChanged(fallback)
-            fetch(monitor, fallback) { TriggerEvaluator.evaluate(monitor, it) }
+        var activeRoute = route
+        var pageRetried = false
+        var networkFallbackUsed = false
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            try {
+                val result = fetch(monitor, activeRoute) { html, retryAfter ->
+                    val evaluated = TriggerEvaluator.evaluate(monitor, html)
+                    evaluated.missingPageElement?.let { missing ->
+                        if (!pageRetried || retryAfter > 0) throw PageValidationException(missing, retryAfterMillis = retryAfter)
+                    }
+                    evaluated
+                }
+                return result.copy(pageRetries = if (pageRetried) 1 else 0)
+            } catch (error: PageValidationException) {
+                if (!pageRetried && error.retryImmediately && error.retryAfterMillis == 0L) {
+                    pageRetried = true
+                    continue // Same URL and route; do not rotate networks to retry content.
+                }
+                val suffix = if (pageRetried) " (after one immediate page retry)" else ""
+                throw CrawlException("${error.message}$suffix", error.retryAfterMillis, error.httpStatus).apply { initCause(error) }
+            } catch (error: IOException) {
+                // HTTP/validation errors are not connection failures.
+                if (error is CrawlException || networkFallbackUsed) throw error
+                val fallback = activeRoute.fallback?.copy(ipFallback = true, fallbackReason = ConnectionDebug.failure(error)) ?: throw error
+                networkFallbackUsed = true
+                activeRoute = fallback
+                onRouteChanged(fallback)
+            }
         }
     }
 
-    suspend fun findPrices(monitor: Monitor): List<PriceCandidate> = fetch(monitor, RequestRoute()) {
-        PriceDiscovery.find(it, monitor.url, monitor.numberFormat)
+    suspend fun findPrices(monitor: Monitor): List<PriceCandidate> = fetch(monitor, RequestRoute()) { html, _ ->
+        PriceDiscovery.find(html, monitor.url, monitor.numberFormat)
     }
 
-    private suspend fun <T> fetch(monitor: Monitor, route: RequestRoute, process: (String) -> T): T = suspendCancellableCoroutine { continuation ->
+    private suspend fun <T> fetch(monitor: Monitor, route: RequestRoute, process: (String, Long) -> T): T = suspendCancellableCoroutine { continuation ->
         val request = Request.Builder().url(monitor.url)
             .header("Accept", "text/html,application/xhtml+xml,text/plain;q=0.8")
             .header("Cache-Control", "no-cache").build()
@@ -111,6 +133,11 @@ class Crawler(private val client: OkHttpClient = defaultClient()) {
             override fun onResponse(call: Call, response: Response) {
                 try {
                     val result = response.use {
+                        val responseRetryAfter = retryAfter(it.header("Retry-After"))
+                        if (it.header("x-amzn-waf-action")?.lowercase() in setOf("challenge", "captcha")) {
+                            throw PageValidationException("HTTP ${it.code}: Website returned an access challenge.",
+                                retryAfterMillis = responseRetryAfter, httpStatus = it.code.takeIf { code -> code !in 200..299 })
+                        }
                         if (!it.isSuccessful) throw CrawlException(HttpErrors.describe(it.code, it.message), retryAfter(it.header("Retry-After")), it.code)
                         val body = it.body ?: throw CrawlException("The server returned no page.")
                         val type = body.contentType()
@@ -121,7 +148,14 @@ class Crawler(private val client: OkHttpClient = defaultClient()) {
                         source.request(limit + 1)
                         if (source.buffer.size > limit) throw CrawlException("Page exceeds the 16 MB safety limit.")
                         val html = source.buffer.readString(type?.charset(Charsets.UTF_8) ?: Charsets.UTF_8)
-                        process(html)
+                        try {
+                            process(html, responseRetryAfter)
+                        } catch (error: PageValidationException) {
+                            throw PageValidationException("HTTP ${it.code}: ${error.message}", error.retryImmediately,
+                                max(responseRetryAfter, error.retryAfterMillis), error.httpStatus, error)
+                        } catch (error: MissingPageElementException) {
+                            throw PageValidationException("HTTP ${it.code}: ${error.message}", retryAfterMillis = responseRetryAfter, cause = error)
+                        }
                     }
                     if (continuation.isActive) continuation.resume(result)
                 } catch (error: Exception) {
@@ -243,8 +277,14 @@ class MonitorEngine(
             val wait = max(intervalWait, max(backoff, retryAfter))
             turn++
             if (route.path == NetworkPath.WIFI && route.family != null) wifiIpTurn++
+            val outcome = when {
+                failureDetails.isNotBlank() -> failureDetails
+                result?.missingPageElement != null -> "${result!!.missingPageElement} (after one page retry)"
+                result?.pageRetries == 1 -> "Success after one page retry"
+                else -> "Success"
+            }
             val diagnostic = ConnectionDebug(System.currentTimeMillis(), requested, route.label,
-                failureDetails.ifBlank { "Success" }, route.fallbackReason, route.networkDetails)
+                outcome, route.fallbackReason, route.networkDetails)
             repository.record(monitor, result, error, System.currentTimeMillis() + wait, httpStatus, route.label, turn, wifiIpTurn, route.note, route.ipFallback, diagnostic)?.let(onHttpError)
             delay(wait)
         }

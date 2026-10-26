@@ -30,7 +30,7 @@ object PriceDiscovery {
 
     fun find(html: String, url: String, format: NumberFormat = NumberFormat.AUTO): List<PriceCandidate> {
         val document = Jsoup.parse(html, url)
-        require(listOf("just a moment", "access denied", "verify you are human", "attention required").none { document.title().contains(it, true) }) { "Website returned an access challenge." }
+        PageValidation.validate(document, url)
         document.select("script,style,noscript,template").remove()
         val results = linkedMapOf<String, PriceCandidate>()
         val elements = document.select("meta[itemprop=price],meta[property=product:price:amount],meta[property=og:price:amount],[itemprop=price],[data-price]") + document.body().getAllElements()

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.27
+
+- Validate returned HTML for challenge forms, WAF response headers, rate-limit pages, temporary errors, and Amazon product identity/sign-in mismatches before evaluating alerts.
+- Retry invalid/empty pages and missing configured selectors once immediately using the same URL and route. Keep existing both/either condition behavior after a repeated selector failure; never retry normal nonmatching results.
+- Honor Retry-After even on HTTP 200 invalid pages. Recognized rate-limit HTML waits at least 60 seconds instead of retrying immediately; existing HTTP-error and network-family fallback behavior is retained.
+- Record page retry recovery/failure in local network diagnostics. Download completion, timeouts, size limits, and HTML-only fetching remain in place; JavaScript is not executed.
+
 ## 1.0.26
 
 - Restyle watchdog deletion with an app-themed dark, rounded confirmation dialog, a highlighted watchdog name/URL, and equal-width Cancel and red Delete buttons with press feedback.
