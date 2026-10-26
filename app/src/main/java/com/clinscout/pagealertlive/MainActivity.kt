@@ -322,7 +322,7 @@ class MainActivity : Activity() {
         val reliability = section("Background setup")
         reliability.addView(text("${if (exempt) "✓" else "○"}  Battery optimization ${if (exempt) "disabled" else "enabled"}", 14, if (exempt) mint else amber).spaced())
         reliability.addView(settingsButton("Battery details (Akkudetails)") { openBatteryDetails() }.spaced())
-        reliability.addView(settingsButton(if (exempt) "Battery settings" else "Allow unrestricted battery use", !exempt) {
+        reliability.addView(settingsButton("Background settings", !exempt) {
             openBatterySettings()
         }.spaced())
         val appVersion = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
@@ -712,13 +712,18 @@ class MainActivity : Activity() {
         toast("Open Battery / Akkudetails, then choose Unrestricted / Keine Beschränkungen.")
     }
     private fun openBatterySettings() {
-        // Restore the original Doze exemption flow. OEM app restrictions have
-        // their own Battery details button and are separate from this allowlist.
-        val exempt = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
-        val destinations = buildList {
-            if (!exempt) add(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:$packageName".toUri()))
-            add(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-        }
+        // Open this app's background policy, including when already exempt.
+        // The optimization allowlist is a different, app-list screen.
+        val destinations = listOf(
+            Intent("miui.intent.action.HIDDEN_APPS_CONFIG_ACTIVITY")
+                .setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
+                .putExtra("package_name", packageName)
+                .putExtra("package_label", getString(R.string.app_name)),
+            Intent("android.settings.APP_BATTERY_SETTINGS", "package:$packageName".toUri())
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName),
+            Intent("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", "package:$packageName".toUri())
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        )
         for (destination in destinations) {
             try {
                 startActivity(destination)
@@ -728,7 +733,7 @@ class MainActivity : Activity() {
             }
         }
         openAppSettings()
-        toast("Open Battery optimization and allow this app to ignore optimizations.")
+        toast("Open this app's Battery / Background settings and allow unrestricted background use.")
     }
     private fun openChannelSettings(channel: String) {
         try {

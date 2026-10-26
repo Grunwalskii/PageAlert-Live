@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.22
+
+- Correct only the second battery button, now labelled Background settings. Open this app's Xiaomi/Poco background policy, with Android per-app battery settings and app info as fallbacks, regardless of its optimization exemption state. Remove the optimization app-list destination.
+- Keep the first Battery details (Akkudetails) button's working HyperOS usage-detail destination unchanged.
+
 ## 1.0.21
 
 - Point Battery details (Akkudetails) first to Xiaomi/HyperOS Security Center's per-app PowerDetailActivity, the usage-detail screen with CPU/data/battery statistics and battery restrictions. Pass this app's package, label, and UID.
