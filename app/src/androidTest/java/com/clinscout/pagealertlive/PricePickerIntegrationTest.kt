@@ -79,7 +79,10 @@ class PricePickerIntegrationTest {
                 assertTrue(windows().filterIsInstance<TextView>().any { it.text == "Keyword present • “in stock” ✓" })
                 assertTrue(windows().filterIsInstance<TextView>().any { it.text == "Price at or below 100 - 99.99 ≤ 100" })
                 assertFalse(windows().filterIsInstance<TextView>().any { it.text == "Price 99.99 ≤ 100" })
+                assertTrue(windows().filterIsInstance<TextView>().any { it.text.startsWith("Interval ") && it.text.contains("Match both conditions") })
+                assertFalse(windows().filterIsInstance<TextView>().any { it.text == "Match both conditions" })
             }
+            shell("screencap -p /sdcard/Download/pagealert-combined-125.png")
         } finally { scenario.close(); context.repository.update(true) { AppState() }; server.shutdown() }
     }
 

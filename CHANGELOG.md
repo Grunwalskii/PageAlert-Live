@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.25
+
+- Reduce the Enabled, Checks, and Events counter height from 74 dp to a compact 52 dp minimum, with smaller vertical padding. Keep the text size and allow counters to grow for larger system fonts.
+- Move Match both/either conditions onto the interval/connection line instead of giving it a separate row.
+
 ## 1.0.24
 
 - Widen watchdog cards by reducing the Monitors tab's side margins to 12 dp.

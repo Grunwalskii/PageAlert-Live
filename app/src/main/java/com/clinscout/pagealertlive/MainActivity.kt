@@ -186,8 +186,9 @@ class MainActivity : Activity() {
         val stats = row()
         listOf("${state.monitors.count { it.enabled }}\nENABLED", "${state.statuses.values.sumOf { it.checks }}\nCHECKS", "${state.history.size}\nEVENTS").forEach { label ->
             stats.addView(text(label, 16, mint, true).apply {
-                gravity = Gravity.CENTER; setPadding(0, dp(16), 0, dp(16)); background = shape(panel, 14)
-            }, LinearLayout.LayoutParams(0, dp(74), 1f).apply { marginEnd = dp(6) })
+                gravity = Gravity.CENTER; minimumHeight = dp(52)
+                setPadding(0, dp(4), 0, dp(4)); background = shape(panel, 14)
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
         }
         content.addView(stats.spaced(20))
         val heading = row()
@@ -243,7 +244,6 @@ class MainActivity : Activity() {
             card.addView(text(rule + outcome, 14, mint, true).spaced(8))
             if (monitor.usesKeyword && monitor.usesPrice) {
                 card.addView(text(priceRule, 14, mint, true).spaced(6))
-                card.addView(text(if (monitor.requireAllConditions) "Match both conditions" else "Match either condition", 12, muted).spaced(4))
             }
             val rotates = monitor.alternateNetworks || monitor.alternateIpFamilies
             val connection = if (rotates) {
@@ -254,7 +254,10 @@ class MainActivity : Activity() {
                 IpFamily.entries.firstOrNull { connection.endsWith(" • ${it.label}") } else null
             val displayedConnection = if (fallbackFamily != null && connection != null)
                 connection.removeSuffix(fallbackFamily.label) + "Fallback to ${fallbackFamily.label}" else connection
-            val connectionLine = "Interval  ${interval(monitor)}" + (displayedConnection?.let { " • $it" } ?: "")
+            val conditionMode = if (monitor.usesKeyword && monitor.usesPrice)
+                if (monitor.requireAllConditions) "Match both conditions" else "Match either condition" else null
+            val connectionLine = "Interval  ${interval(monitor)}" + (conditionMode?.let { " • $it" } ?: "") +
+                (displayedConnection?.let { " • $it" } ?: "")
             card.addView(text(connectionLine, 12, muted).apply {
                 if (fallbackFamily != null) {
                     text = SpannableString(connectionLine).apply {

@@ -4,7 +4,7 @@ PageAlert Live monitors multiple websites for keywords, missing text, or price d
 
 [Get PageAlert Live on Google Play](https://play.google.com/store/apps/details?id=com.clinscout.pagealertlive) · [MIT License](LICENSE)
 
-[Download the signed release APK](https://github.com/Grunwalskii/PageAlert-Live/releases/download/v1.0.24/PageAlert-Live-1.0.24.apk) (`1.0.24`; [SHA-256](https://github.com/Grunwalskii/PageAlert-Live/releases/download/v1.0.24/PageAlert-Live-1.0.24.apk.sha256)). This APK uses the same private upload key as GitHub versions 1.0.17–1.0.23 and can update them while retaining alerts and settings.
+[Download the signed release APK](https://github.com/Grunwalskii/PageAlert-Live/releases/download/v1.0.25/PageAlert-Live-1.0.25.apk) (`1.0.25`; [SHA-256](https://github.com/Grunwalskii/PageAlert-Live/releases/download/v1.0.25/PageAlert-Live-1.0.25.apk.sha256)). This APK uses the same private upload key as GitHub versions 1.0.17–1.0.24 and can update them while retaining alerts and settings.
 
 This GitHub APK cannot update the Play Store version: its upload signing certificate differs from Google Play's app signing certificate. Keep your existing app installed: version 1.0.11 has no export option and disables Android backup, and uninstalling deletes its local alerts and settings. Use a Play-signed update to preserve that data. The earlier debug APK also uses a different certificate.
 
