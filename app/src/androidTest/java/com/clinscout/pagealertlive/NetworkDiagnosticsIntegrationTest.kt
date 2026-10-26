@@ -4,10 +4,12 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
+import android.view.inspector.WindowInspector
 import android.widget.TextView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -15,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
+@SdkSuppress(minSdkVersion = 29)
 class NetworkDiagnosticsIntegrationTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -42,7 +45,13 @@ class NetworkDiagnosticsIntegrationTest {
             instrumentation.waitForIdleSync()
             scenario.onActivity { activity ->
                 val textViews = views(activity.findViewById(android.R.id.content))
-                assertTrue(textViews.any { it.text == "Network diagnostics" })
+                assertTrue(textViews.indexOfFirst { it.text == "Device app settings" } < textViews.indexOfFirst { it.text == "Network diagnostics" })
+                assertFalse(textViews.any { it.text.contains("Current Wi-Fi status:") || it.text == "Refresh network info" })
+                textViews.first { it.text == "Network diagnostics" }.performClick()
+            }
+            instrumentation.waitForIdleSync()
+            scenario.onActivity {
+                val textViews = WindowInspector.getGlobalWindowViews().flatMap(::views)
                 val report = textViews.first { it.text.contains("Current Wi-Fi status:") }.text.toString()
                 assertTrue(report.contains("Watchdog: Amazon debug"))
                 assertTrue(report.contains("Last IP fallback (retained after later checks):"))
@@ -55,6 +64,23 @@ class NetworkDiagnosticsIntegrationTest {
                 val clipboard = context.getSystemService(ClipboardManager::class.java)
                 assertEquals(report, clipboard.primaryClip!!.getItemAt(0).text.toString())
                 textViews.first { it.text == "Refresh network info" }.performClick()
+            }
+            val latest = mobile.copy(checkedAt = 4000, outcome = "Latest successful check")
+            context.repository.update(true) { it.copy(statuses = it.statuses + (monitor.id to it.statuses.getValue(monitor.id).copy(connectionDebug = latest))) }
+            instrumentation.waitForIdleSync()
+            scenario.onActivity {
+                val textViews = WindowInspector.getGlobalWindowViews().flatMap(::views)
+                textViews.first { it.text == "Refresh network info" }.performClick()
+                val refreshed = textViews.first { it.text.contains("Current Wi-Fi status:") }.text.toString()
+                assertTrue(refreshed.contains("Latest successful check"))
+                assertTrue(refreshed.contains("DNS returned IPv4=3, IPv6=0"))
+                textViews.first { it.text == "Copy network debug info" }.performClick()
+                assertEquals(refreshed, context.getSystemService(ClipboardManager::class.java).primaryClip!!.getItemAt(0).text.toString())
+                textViews.first { it.text == "Close" }.performClick()
+            }
+            instrumentation.waitForIdleSync()
+            scenario.onActivity { activity ->
+                assertFalse(views(activity.findViewById(android.R.id.content)).any { it.text.contains("Current Wi-Fi status:") })
             }
             assertTrue(context.repository.state.value.history.isEmpty())
             assertTrue(context.repository.state.value.alarms.isEmpty())

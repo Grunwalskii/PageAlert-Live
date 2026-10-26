@@ -55,6 +55,7 @@ class MainActivity : Activity() {
     private var refreshEditorNetwork: (() -> Unit)? = null
     private var editorDialog: AlertDialog? = null
     private var termsDialog: AlertDialog? = null
+    private var networkDiagnosticsDialog: AlertDialog? = null
     private val timeLabels = mutableListOf<Pair<String, TextView>>()
     private val tabButtons = mutableListOf<Button>()
     private val bg = Color.rgb(12, 20, 28)
@@ -125,7 +126,7 @@ class MainActivity : Activity() {
         ticker = scope.launch { while (isActive) { updateTimes(); delay(1000) } }
     }
     override fun onStop() { observation?.cancel(); ticker?.cancel(); super.onStop() }
-    override fun onDestroy() { termsDialog?.dismiss(); editorDialog?.dismiss(); scope.cancel(); super.onDestroy() }
+    override fun onDestroy() { networkDiagnosticsDialog?.dismiss(); termsDialog?.dismiss(); editorDialog?.dismiss(); scope.cancel(); super.onDestroy() }
     override fun onResume() { super.onResume(); if (::content.isInitialized) render(repository.state.value); refreshEditorNetwork?.invoke() }
 
     private fun render(state: AppState) {
@@ -171,7 +172,7 @@ class MainActivity : Activity() {
         when (tab) {
             0 -> monitors(state)
             1 -> history(state)
-            else -> settings(state)
+            else -> settings()
         }
         content.addView(Space(this), LinearLayout.LayoutParams(1, dp(12)))
         scroll.post { scroll.scrollTo(0, oldY) }
@@ -272,15 +273,20 @@ class MainActivity : Activity() {
             card.addView(clock)
             val actions = row()
             actions.addView(button("Edit", false) { editor(monitor) }, LinearLayout.LayoutParams(0, dp(44), 1f))
-            actions.addView(button("Open page", false) {
+            actions.addView(button("Duplicate", false) {
+                editor(monitor.copy(id = java.util.UUID.randomUUID().toString(), name = "${monitor.name} (copy)"), isNew = true)
+            }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            card.addView(actions.spaced(8))
+            val pageActions = row()
+            pageActions.addView(button("Open page", false) {
                 BrowserLinks.open(this, monitor.url)
             }, LinearLayout.LayoutParams(0, dp(44), 1f))
-            actions.addView(button("Delete", false) {
+            pageActions.addView(button("Delete", false) {
                 AlertDialog.Builder(this).setTitle("Delete ${monitor.name}?")
                     .setMessage("This removes the monitor and disarms its active alert.")
                     .setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> repository.delete(monitor.id) }.show()
             }, LinearLayout.LayoutParams(0, dp(44), 1f))
-            card.addView(actions.spaced(8))
+            card.addView(pageActions.spaced(4))
             content.addView(card.spaced(12))
         }
     }
@@ -305,7 +311,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun settings(state: AppState) {
+    private fun settings() {
         content.addView(text("Settings", 23, white, true).spaced())
         val exempt = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
         val notifications = notificationsReady()
@@ -315,13 +321,50 @@ class MainActivity : Activity() {
         }
         val reliability = section("Background setup")
         reliability.addView(text("${if (exempt) "✓" else "○"}  Battery optimization ${if (exempt) "disabled" else "enabled"}", 14, if (exempt) mint else amber).spaced())
+        reliability.addView(settingsButton("Battery details (Akkudetails)") { openBatteryDetails() }.spaced())
         reliability.addView(settingsButton(if (exempt) "Battery settings" else "Allow unrestricted battery use", !exempt) {
             openBatterySettings()
         }.spaced())
-        val networkDebug = section("Network diagnostics")
-        networkDebug.addView(text("Fallback to IPv4 means the IPv6 attempt failed. Fallback to IPv6 means the IPv4 attempt failed.", 13, muted).spaced(8))
         val appVersion = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
-        val report = buildString {
+        val notices = section("Notifications")
+        notices.addView(text("${if (notifications) "✓" else "○"}  Notifications ${if (notifications) "enabled" else "need permission"}", 14, if (notifications) mint else amber).spaced())
+        notices.addView(settingsButton("Notification settings") {
+            startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+        }.spaced())
+        notices.addView(settingsButton("Monitoring notification settings") { openChannelSettings(MonitorService.STATUS_CHANNEL) }.spaced(8))
+        notices.addView(settingsButton("Alarm notification settings") { openChannelSettings(MonitorService.ALARM_CHANNEL) }.spaced(8))
+        notices.addView(settingsButton("HTTP error notification settings") { openChannelSettings(MonitorService.HTTP_CHANNEL) }.spaced(8))
+        notices.addView(text("Allow lock-screen notifications in your phone settings.", 13, muted).spaced())
+        val sound = section("Alarm sound")
+        sound.addView(text("Uses your phone's alarm sound and volume.", 13, muted).spaced())
+        sound.addView(settingsButton("Test looping alarm", true) { withNotifications(MonitorService.ACTION_TEST) }.spaced())
+        sound.addView(settingsButton("Alarm volume settings") { startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }.spaced(8))
+        val device = section("Device settings")
+        device.addView(settingsButton("Device notification settings") {
+            try { startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) }
+            catch (_: Exception) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+        }.spaced())
+        device.addView(settingsButton("Device app settings") { openAppSettings() }.spaced(8))
+        val diagnostics = section("Diagnostics")
+        diagnostics.addView(settingsButton("Network diagnostics") { showNetworkDiagnostics() }.spaced())
+        CrashReports.read(this)?.let { report ->
+            diagnostics.addView(settingsButton("Copy last crash report") {
+                getSystemService(android.content.ClipboardManager::class.java)
+                    .setPrimaryClip(android.content.ClipData.newPlainText("PageAlert Live crash", report))
+                toast("Crash report copied.")
+            }.spaced())
+        }
+        val privacy = section("Privacy & legal")
+        privacy.addView(text("No data is collected by the developer. No analytics or tracking. Settings and activity stay on your device.", 13, muted).spaced())
+        privacy.addView(settingsButton("Privacy policy / Datenschutzerklärung") { showPrivacyPolicy() }.spaced())
+        privacy.addView(settingsButton("Impressum") { showImpressum() }.spaced(8))
+        content.addView(text("${getString(R.string.app_name)} $appVersion", 12, muted).spaced())
+    }
+
+    private fun networkDiagnosticsReport(): String {
+        val state = repository.state.value
+        val appVersion = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
+        return buildString {
             appendLine("${getString(R.string.app_name)} $appVersion • $packageName")
             appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) • ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("Current Wi-Fi status:")
@@ -342,44 +385,30 @@ class MainActivity : Activity() {
                 }
             }
         }.trimEnd()
-        networkDebug.addView(text(report, 12, muted).apply { setTextIsSelectable(true); typeface = Typeface.MONOSPACE }.spaced(8))
-        networkDebug.addView(settingsButton("Refresh network info") { render(repository.state.value) }.spaced(8))
-        networkDebug.addView(settingsButton("Copy network debug info") {
+    }
+
+    private fun showNetworkDiagnostics() {
+        if (networkDiagnosticsDialog?.isShowing == true) return
+        val body = column(16)
+        body.addView(text("Fallback to IPv4 means the IPv6 attempt failed. Fallback to IPv6 means the IPv4 attempt failed.", 13, muted))
+        val report = text(networkDiagnosticsReport(), 12, muted).apply {
+            setTextIsSelectable(true)
+            typeface = Typeface.MONOSPACE
+        }
+        body.addView(settingsButton("Refresh network info") { report.text = networkDiagnosticsReport() }.spaced())
+        body.addView(settingsButton("Copy network debug info") {
             getSystemService(android.content.ClipboardManager::class.java)
-                .setPrimaryClip(android.content.ClipData.newPlainText("PageAlert Live network debug", report))
+                .setPrimaryClip(android.content.ClipData.newPlainText("PageAlert Live network debug", report.text))
             toast("Network debug info copied.")
         }.spaced(8))
-        val notices = section("Notifications")
-        notices.addView(text("${if (notifications) "✓" else "○"}  Notifications ${if (notifications) "enabled" else "need permission"}", 14, if (notifications) mint else amber).spaced())
-        notices.addView(settingsButton("Notification settings") {
-            startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
-        }.spaced())
-        notices.addView(settingsButton("Monitoring notification settings") { openChannelSettings(MonitorService.STATUS_CHANNEL) }.spaced(8))
-        notices.addView(settingsButton("Alarm notification settings") { openChannelSettings(MonitorService.ALARM_CHANNEL) }.spaced(8))
-        notices.addView(settingsButton("HTTP error notification settings") { openChannelSettings(MonitorService.HTTP_CHANNEL) }.spaced(8))
-        notices.addView(text("Allow lock-screen notifications in your phone settings.", 13, muted).spaced())
-        val sound = section("Alarm sound")
-        sound.addView(text("Uses your phone's alarm sound and volume.", 13, muted).spaced())
-        sound.addView(settingsButton("Test looping alarm", true) { withNotifications(MonitorService.ACTION_TEST) }.spaced())
-        sound.addView(settingsButton("Alarm volume settings") { startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }.spaced(8))
-        val device = section("Device settings")
-        device.addView(settingsButton("Device notification settings") {
-            try { startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) }
-            catch (_: Exception) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
-        }.spaced())
-        device.addView(settingsButton("Device app settings") { openAppSettings() }.spaced(8))
-        CrashReports.read(this)?.let { report ->
-            section("Diagnostics").addView(settingsButton("Copy last crash report") {
-                getSystemService(android.content.ClipboardManager::class.java)
-                    .setPrimaryClip(android.content.ClipData.newPlainText("PageAlert Live crash", report))
-                toast("Crash report copied.")
-            }.spaced())
-        }
-        val privacy = section("Privacy & legal")
-        privacy.addView(text("No data is collected by the developer. No analytics or tracking. Settings and activity stay on your device.", 13, muted).spaced())
-        privacy.addView(settingsButton("Privacy policy / Datenschutzerklärung") { showPrivacyPolicy() }.spaced())
-        privacy.addView(settingsButton("Impressum") { showImpressum() }.spaced(8))
-        content.addView(text("${getString(R.string.app_name)} $appVersion", 12, muted).spaced())
+        body.addView(report.spaced())
+        val dialog = AlertDialog.Builder(this).setTitle("Network diagnostics")
+            .setView(ScrollView(this).apply { addView(body) })
+            .setPositiveButton("Close", null).create()
+        networkDiagnosticsDialog = dialog
+        dialog.setOnDismissListener { networkDiagnosticsDialog = null }
+        dialog.show()
+        dialog.window?.setBackgroundDrawable(shape(panel, 24))
     }
 
     private fun showPrivacyPolicy() {
@@ -395,7 +424,7 @@ class MainActivity : Activity() {
             .findViewById<TextView>(android.R.id.message)?.setTextIsSelectable(true)
     }
 
-    private fun editor(existing: Monitor?) {
+    private fun editor(existing: Monitor?, isNew: Boolean = existing == null) {
         val form = column(16).apply { isFocusableInTouchMode = true }
         fun section(title: String? = null) = card().also { section ->
             title?.let { section.addView(text(it, 16, white, true)) }
@@ -511,7 +540,7 @@ class MainActivity : Activity() {
         val errors = text("", 14, red).spaced()
         form.addView(errors)
         val editorScroll = ScrollView(this).apply { addView(form); isFillViewport = true; clipToPadding = false }
-        val title = text(if (existing == null) "New watchdog" else "Edit watchdog", 23, white, true).apply {
+        val title = text(if (isNew) "New watchdog" else "Edit watchdog", 23, white, true).apply {
             setPadding(dp(24), dp(24), dp(24), dp(8))
         }
         val dialog = AlertDialog.Builder(this).setCustomTitle(title)
@@ -571,7 +600,7 @@ class MainActivity : Activity() {
                     try { repository.save(monitor); dialog.dismiss() }
                     catch (failure: Exception) { errors.text = failure.message ?: "Could not save monitor." }
                 }
-                if (existing == null || monitor.url != existing.url) {
+                if (isNew || monitor.url != existing?.url) {
                     termsDialog = AlertDialog.Builder(this).setTitle("Website terms")
                         .setMessage("By choosing Confirm & save, you confirm that your automated checks comply with this website's terms of service (AGB) and that you are permitted to monitor this URL.\n\n${monitor.url}")
                         .setNegativeButton("Cancel", null)
@@ -652,6 +681,30 @@ class MainActivity : Activity() {
         catch (error: Exception) { toast("Could not start the service: ${error.message}") }
     }
     private fun openAppSettings() = startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
+    private fun openBatteryDetails() {
+        // Xiaomi / Poco / Redmi expose their per-app restrictions separately.
+        // Try directly: package visibility can hide valid Settings activities.
+        val destinations = listOf(
+            Intent("miui.intent.action.HIDDEN_APPS_CONFIG_ACTIVITY")
+                .setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
+                .putExtra("package_name", packageName)
+                .putExtra("package_label", getString(R.string.app_name)),
+            Intent("android.settings.APP_BATTERY_SETTINGS", "package:$packageName".toUri())
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName),
+            Intent("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", "package:$packageName".toUri())
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        )
+        for (destination in destinations) {
+            try {
+                startActivity(destination)
+                return
+            } catch (_: ActivityNotFoundException) {
+            } catch (_: SecurityException) {
+            }
+        }
+        openAppSettings()
+        toast("Open Battery / Akkudetails, then choose Unrestricted / Keine Beschränkungen.")
+    }
     private fun openBatterySettings() {
         // Open this app's Battery details, regardless of its Doze exemption.
         // Support both current Android and older/OEM settings destinations.

@@ -147,6 +147,46 @@ class ActivitySettingsIntegrationTest {
         }
     }
 
+    @Test fun batteryDetailsSupportsXiaomiAndFallsBackOnOtherPhones() {
+        unlock()
+        context.repository.update(true) { AppState() }
+        // Cover the Poco route, both Android routes, and a restricted OEM fallback.
+        val actions = listOf("miui.intent.action.HIDDEN_APPS_CONFIG_ACTIVITY", "android.settings.APP_BATTERY_SETTINGS",
+            "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        for (accepted in actions.indices) {
+            val launched = mutableListOf<Intent>()
+            val interceptor = object : Instrumentation.ActivityMonitor() {
+                override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
+                    if (intent.action !in actions) return null
+                    launched += Intent(intent)
+                    if (intent.action != actions[accepted]) {
+                        if (accepted == actions.lastIndex) throw SecurityException()
+                        throw ActivityNotFoundException()
+                    }
+                    return Instrumentation.ActivityResult(Activity.RESULT_OK, null)
+                }
+            }
+            instrumentation.addMonitor(interceptor)
+            val scenario = ActivityScenario.launch(MainActivity::class.java)
+            try {
+                scenario.onActivity { click("Settings") }
+                instrumentation.waitForIdleSync()
+                scenario.onActivity {
+                    val labels = windows().filterIsInstance<TextView>().map { it.text.toString() }
+                    val exempt = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+                    val oldButton = if (exempt) "Battery settings" else "Allow unrestricted battery use"
+                    assertTrue(labels.indexOf("Battery details (Akkudetails)") < labels.indexOf(oldButton))
+                    click("Battery details (Akkudetails)")
+                }
+                assertEquals(actions.take(accepted + 1), launched.map { it.action })
+                assertEquals("com.miui.powerkeeper/com.miui.powerkeeper.ui.HiddenAppsConfigActivity", launched.first().component?.flattenToString())
+                assertEquals(context.packageName, launched.first().getStringExtra("package_name"))
+                assertEquals(context.getString(R.string.app_name), launched.first().getStringExtra("package_label"))
+                launched.drop(1).forEach { assertEquals("package:${context.packageName}", it.dataString) }
+            } finally { scenario.close(); instrumentation.removeMonitor(interceptor) }
+        }
+    }
+
     @Test fun olderBatteryPageIsTriedWhenTheCurrentActionIsUnavailable() {
         unlock()
         context.repository.update(true) { AppState() }

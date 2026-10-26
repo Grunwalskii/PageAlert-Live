@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.18
+
+- Add Battery details (Akkudetails) before the existing battery settings shortcut. Open Xiaomi/Poco/Redmi's per-app restrictions directly, with Android battery details and app settings as fallbacks on other phones.
+- Move Network diagnostics after Device settings into a button that opens a dialog with the report, refresh, and copy controls.
+- Add Duplicate to each watchdog. Open a prefilled new-watchdog editor and save an independent copy with a new ID; Cancel creates no extra watchdog. Keep the original configuration, history, and runtime state intact.
+
 ## 1.0.17
 
 - Publish a release APK signed with the app's dedicated private upload key, replacing the debug-signed APK as the recommended GitHub download.
