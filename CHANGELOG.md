@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.17
+
+- Publish a release APK signed with the app's dedicated private upload key, replacing the debug-signed APK as the recommended GitHub download.
+- Updating an existing installation requires a matching app signing certificate. Google Play may use a different distribution key; the upload-signed APK is not guaranteed to update a Play Store installation. Keep the existing app installed to preserve its local data.
+
 ## 1.0.16-dev
 
 - Limit overview URLs to one line with an ellipsis for longer addresses. Editing and opening the page still use the full URL.
