@@ -276,17 +276,23 @@ class MainActivity : Activity() {
             actions.addView(button("Duplicate", false) {
                 editor(monitor.copy(id = java.util.UUID.randomUUID().toString(), name = "${monitor.name} (copy)"), isNew = true)
             }, LinearLayout.LayoutParams(0, dp(44), 1f))
-            card.addView(actions.spaced(8))
-            val pageActions = row()
-            pageActions.addView(button("Open page", false) {
+            actions.addView(button("Open page", false) {
                 BrowserLinks.open(this, monitor.url)
             }, LinearLayout.LayoutParams(0, dp(44), 1f))
-            pageActions.addView(button("Delete", false) {
+            actions.addView(button("Delete", false) {
                 AlertDialog.Builder(this).setTitle("Delete ${monitor.name}?")
                     .setMessage("This removes the monitor and disarms its active alert.")
                     .setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> repository.delete(monitor.id) }.show()
             }, LinearLayout.LayoutParams(0, dp(44), 1f))
-            card.addView(pageActions.spaced(4))
+            for (index in 0 until actions.childCount) {
+                (actions.getChildAt(index) as Button).apply {
+                    maxLines = 1
+                    minWidth = 0; minimumWidth = 0
+                    setPadding(dp(2), dp(4), dp(2), dp(4))
+                    setAutoSizeTextTypeUniformWithConfiguration(10, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+                }
+            }
+            card.addView(actions.spaced(8))
             content.addView(card.spaced(12))
         }
     }
@@ -339,12 +345,6 @@ class MainActivity : Activity() {
         sound.addView(text("Uses your phone's alarm sound and volume.", 13, muted).spaced())
         sound.addView(settingsButton("Test looping alarm", true) { withNotifications(MonitorService.ACTION_TEST) }.spaced())
         sound.addView(settingsButton("Alarm volume settings") { startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }.spaced(8))
-        val device = section("Device settings")
-        device.addView(settingsButton("Device notification settings") {
-            try { startActivity(Intent("android.settings.NOTIFICATION_SETTINGS")) }
-            catch (_: Exception) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
-        }.spaced())
-        device.addView(settingsButton("Device app settings") { openAppSettings() }.spaced(8))
         val diagnostics = section("Diagnostics")
         diagnostics.addView(settingsButton("Network diagnostics") { showNetworkDiagnostics() }.spaced())
         CrashReports.read(this)?.let { report ->

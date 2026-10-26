@@ -45,7 +45,7 @@ class NetworkDiagnosticsIntegrationTest {
             instrumentation.waitForIdleSync()
             scenario.onActivity { activity ->
                 val textViews = views(activity.findViewById(android.R.id.content))
-                assertTrue(textViews.indexOfFirst { it.text == "Device app settings" } < textViews.indexOfFirst { it.text == "Network diagnostics" })
+                assertTrue(textViews.indexOfFirst { it.text == "Alarm volume settings" } < textViews.indexOfFirst { it.text == "Network diagnostics" })
                 assertFalse(textViews.any { it.text.contains("Current Wi-Fi status:") || it.text == "Refresh network info" })
                 textViews.first { it.text == "Network diagnostics" }.performClick()
             }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.23
+
+- Remove the Device settings card and its two shortcuts.
+- Put Edit, Duplicate, Open page, and Delete in a single watchdog action row. Use compact padding and fit button labels to the available width.
+
 ## 1.0.22
 
 - Correct only the second battery button, now labelled Background settings. Open this app's Xiaomi/Poco background policy, with Android per-app battery settings and app info as fallbacks, regardless of its optimization exemption state. Remove the optimization app-list destination.

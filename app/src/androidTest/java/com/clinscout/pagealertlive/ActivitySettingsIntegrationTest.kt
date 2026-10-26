@@ -108,9 +108,10 @@ class ActivitySettingsIntegrationTest {
                 assertEquals(channel, intent.getStringExtra(Settings.EXTRA_CHANNEL_ID))
             }
             checkDestination("Alarm volume settings", Settings.ACTION_SOUND_SETTINGS)
-            checkDestination("Device notification settings", "android.settings.NOTIFICATION_SETTINGS")
-            assertEquals("package:${context.packageName}", checkDestination("Device app settings", Settings.ACTION_APPLICATION_DETAILS_SETTINGS).dataString)
             ui {
+                assertNull(text("Device settings"))
+                assertNull(text("Device notification settings"))
+                assertNull(text("Device app settings"))
                 val scroll = windows().filterIsInstance<ScrollView>().last()
                 scroll.scrollTo(0, scroll.getChildAt(0).height)
             }
