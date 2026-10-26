@@ -35,6 +35,7 @@ debuglogger/
 # Local distribution material, store assets and recordings stay local.
 artifacts/
 *.apk
-!downloads/PageAlert-Live-debug.apk
+*.apk.sha256
 *.aab
+*.aab.sha256
 *.mp4
