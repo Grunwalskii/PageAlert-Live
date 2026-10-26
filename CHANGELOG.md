@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.19
+
+- Restore the Battery settings destination from 1.0.11: request Android's battery-optimization exemption when needed, or open the optimization exemption list when already exempt. If the direct request is unavailable, try the list before app settings.
+- Keep Battery details (Akkudetails) first for Xiaomi/Poco restrictions and Android app battery details. The second button no longer routes to those same battery-details actions.
+
 ## 1.0.18
 
 - Add Battery details (Akkudetails) before the existing battery settings shortcut. Open Xiaomi/Poco/Redmi's per-app restrictions directly, with Android battery details and app settings as fallbacks on other phones.

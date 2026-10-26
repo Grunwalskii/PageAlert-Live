@@ -97,8 +97,9 @@ class ActivitySettingsIntegrationTest {
             ui { click("Settings") }
             shell("screencap -p /sdcard/Download/pagealert-settings-111.png")
             val exempt = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
-            assertEquals("package:${context.packageName}", checkDestination(
-                if (exempt) "Battery settings" else "Allow unrestricted battery use", "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL").dataString)
+            val battery = checkDestination(if (exempt) "Battery settings" else "Allow unrestricted battery use",
+                if (exempt) Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS else Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            assertEquals(if (exempt) null else "package:${context.packageName}", battery.dataString)
             assertEquals(context.packageName, checkDestination("Notification settings", Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .getStringExtra(Settings.EXTRA_APP_PACKAGE))
             listOf("Monitoring notification settings" to MonitorService.STATUS_CHANNEL,
@@ -122,7 +123,8 @@ class ActivitySettingsIntegrationTest {
     @Test fun unavailableBatteryPageFallsBackToThisAppsInfo() {
         unlock()
         context.repository.update(true) { AppState() }
-        for (failure in listOf(ActivityNotFoundException(), SecurityException())) {
+        for (exempt in listOf(false, true)) withBatteryExemption(exempt) {
+          for (failure in listOf(ActivityNotFoundException(), SecurityException())) {
             val launched = mutableListOf<Intent>()
             val interceptor = object : Instrumentation.ActivityMonitor() {
                 override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
@@ -138,12 +140,18 @@ class ActivitySettingsIntegrationTest {
                 scenario.onActivity { click("Settings") }
                 instrumentation.waitForIdleSync()
                 scenario.onActivity {
-                    val exempt = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
                     click(if (exempt) "Battery settings" else "Allow unrestricted battery use")
                 }
-                assertEquals(listOf("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", "android.settings.APP_BATTERY_SETTINGS", Settings.ACTION_APPLICATION_DETAILS_SETTINGS), launched.map { it.action })
-                assertTrue(launched.all { it.dataString == "package:${context.packageName}" })
+                val expected = buildList {
+                    if (!exempt) add(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                    add(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    add(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                }
+                assertEquals(expected, launched.map { it.action })
+                assertNull(launched.first { it.action == Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS }.data)
+                assertEquals("package:${context.packageName}", launched.last().dataString)
             } finally { scenario.close(); instrumentation.removeMonitor(interceptor) }
+          }
         }
     }
 
@@ -187,7 +195,7 @@ class ActivitySettingsIntegrationTest {
         }
     }
 
-    @Test fun olderBatteryPageIsTriedWhenTheCurrentActionIsUnavailable() {
+    @Test fun unavailableExemptionPromptFallsBackToTheOptimizationList() = withBatteryExemption(false) {
         unlock()
         context.repository.update(true) { AppState() }
         val launched = mutableListOf<Intent>()
@@ -195,7 +203,7 @@ class ActivitySettingsIntegrationTest {
             override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
                 if (intent.action?.startsWith("android.settings.") != true) return null
                 launched += Intent(intent)
-                if (intent.action == "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL") throw ActivityNotFoundException()
+                if (intent.action == Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) throw ActivityNotFoundException()
                 return Instrumentation.ActivityResult(Activity.RESULT_OK, null)
             }
         }
@@ -205,12 +213,51 @@ class ActivitySettingsIntegrationTest {
             scenario.onActivity { click("Settings") }
             instrumentation.waitForIdleSync()
             scenario.onActivity {
-                val exempt = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
-                click(if (exempt) "Battery settings" else "Allow unrestricted battery use")
+                click("Allow unrestricted battery use")
             }
-            assertEquals(listOf("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", "android.settings.APP_BATTERY_SETTINGS"), launched.map { it.action })
-            assertTrue(launched.all { it.dataString == "package:${context.packageName}" })
+            assertEquals(listOf(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS), launched.map { it.action })
+            assertEquals("package:${context.packageName}", launched.first().dataString)
+            assertNull(launched.last().data)
         } finally { scenario.close(); instrumentation.removeMonitor(interceptor) }
+    }
+
+    @Test fun bothBatteryButtonsUseDistinctDestinationsBeforeAndAfterExemption() {
+        unlock()
+        context.repository.update(true) { AppState() }
+        for (exempt in listOf(false, true)) withBatteryExemption(exempt) {
+            val launched = mutableListOf<Intent>()
+            val interceptor = object : Instrumentation.ActivityMonitor() {
+                override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
+                    if (intent.action?.startsWith("android.settings.") != true && intent.component?.packageName != "com.miui.powerkeeper") return null
+                    launched += Intent(intent)
+                    return Instrumentation.ActivityResult(Activity.RESULT_OK, null)
+                }
+            }
+            instrumentation.addMonitor(interceptor)
+            val scenario = ActivityScenario.launch(MainActivity::class.java)
+            try {
+                scenario.onActivity { click("Settings") }
+                instrumentation.waitForIdleSync()
+                scenario.onActivity { click("Battery details (Akkudetails)") }
+                assertEquals("com.miui.powerkeeper", launched.single().component?.packageName)
+                launched.clear()
+                scenario.onActivity { click(if (exempt) "Battery settings" else "Allow unrestricted battery use") }
+                assertEquals(if (exempt) Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS else Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    launched.single().action)
+                assertNull(launched.single().component)
+                assertEquals(if (exempt) null else "package:${context.packageName}", launched.single().dataString)
+            } finally { scenario.close(); instrumentation.removeMonitor(interceptor) }
+        }
+    }
+
+    private fun withBatteryExemption(exempt: Boolean, test: () -> Unit) {
+        val power = context.getSystemService(PowerManager::class.java)
+        val previous = power.isIgnoringBatteryOptimizations(context.packageName)
+        try {
+            shell("cmd deviceidle whitelist ${if (exempt) "+" else "-"}${context.packageName}")
+            assertEquals(exempt, power.isIgnoringBatteryOptimizations(context.packageName))
+            test()
+        } finally { shell("cmd deviceidle whitelist ${if (previous) "+" else "-"}${context.packageName}") }
     }
 
     private fun unlock() { shell("input keyevent 224"); shell("wm dismiss-keyguard") }

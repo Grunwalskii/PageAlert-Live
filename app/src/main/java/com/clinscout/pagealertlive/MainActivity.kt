@@ -706,18 +706,23 @@ class MainActivity : Activity() {
         toast("Open Battery / Akkudetails, then choose Unrestricted / Keine Beschränkungen.")
     }
     private fun openBatterySettings() {
-        // Open this app's Battery details, regardless of its Doze exemption.
-        // Support both current Android and older/OEM settings destinations.
-        for (action in listOf("android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL", "android.settings.APP_BATTERY_SETTINGS")) {
+        // Restore the original Doze exemption flow. OEM app restrictions have
+        // their own Battery details button and are separate from this allowlist.
+        val exempt = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+        val destinations = buildList {
+            if (!exempt) add(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:$packageName".toUri()))
+            add(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
+        for (destination in destinations) {
             try {
-                startActivity(Intent(action, "package:$packageName".toUri()))
+                startActivity(destination)
                 return
             } catch (_: ActivityNotFoundException) {
             } catch (_: SecurityException) {
             }
         }
         openAppSettings()
-        toast("Open Battery, then allow unrestricted background use.")
+        toast("Open Battery optimization and allow this app to ignore optimizations.")
     }
     private fun openChannelSettings(channel: String) {
         try {
