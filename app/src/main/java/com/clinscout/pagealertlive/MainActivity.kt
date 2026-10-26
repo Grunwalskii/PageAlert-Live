@@ -138,6 +138,8 @@ class MainActivity : Activity() {
             button.setTypeface(null, if (selected) Typeface.BOLD else Typeface.NORMAL)
         }
         val oldY = scroll.scrollY
+        val horizontalPadding = dp(if (tab == 0) 12 else 24)
+        content.setPadding(horizontalPadding, dp(12), horizontalPadding, dp(12))
         content.removeAllViews()
         timeLabels.clear()
         val live = state.running && state.serviceAlive
@@ -201,7 +203,12 @@ class MainActivity : Activity() {
         }
         state.monitors.forEach { monitor ->
             val status = state.statuses[monitor.id]
-            val card = card()
+            val watchdogCard = column(0).apply {
+                background = shape(panel, 16)
+                clipToOutline = true
+            }
+            val card = column(16).apply { setPadding(dp(16), dp(16), dp(16), dp(14)) }
+            watchdogCard.addView(card, LinearLayout.LayoutParams(-1, -2))
             val title = row()
             title.addView(text(monitor.name, 19, white, true), LinearLayout.LayoutParams(0, -2, 1f))
             title.addView(Switch(this).apply {
@@ -272,28 +279,43 @@ class MainActivity : Activity() {
             timeLabels += monitor.id to clock
             card.addView(clock)
             val actions = row()
-            actions.addView(button("Edit", false) { editor(monitor) }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            actions.addView(button("Edit", false) { editor(monitor) }, LinearLayout.LayoutParams(0, dp(48), 1f))
             actions.addView(button("Duplicate", false) {
                 editor(monitor.copy(id = java.util.UUID.randomUUID().toString(), name = "${monitor.name} (copy)"), isNew = true)
-            }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            }, LinearLayout.LayoutParams(0, dp(48), 1f))
             actions.addView(button("Open page", false) {
                 BrowserLinks.open(this, monitor.url)
-            }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            }, LinearLayout.LayoutParams(0, dp(48), 1f))
             actions.addView(button("Delete", false) {
                 AlertDialog.Builder(this).setTitle("Delete ${monitor.name}?")
                     .setMessage("This removes the monitor and disarms its active alert.")
                     .setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> repository.delete(monitor.id) }.show()
-            }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            }, LinearLayout.LayoutParams(0, dp(48), 1f))
+            val dividerColor = Color.rgb(48, 70, 83)
+            actions.showDividers = LinearLayout.SHOW_DIVIDER_MIDDLE
+            actions.dividerDrawable = android.graphics.drawable.GradientDrawable().apply {
+                setColor(dividerColor)
+                setSize(dp(1), dp(48))
+            }
             for (index in 0 until actions.childCount) {
                 (actions.getChildAt(index) as Button).apply {
                     maxLines = 1
                     minWidth = 0; minimumWidth = 0
-                    setPadding(dp(2), dp(4), dp(2), dp(4))
-                    setAutoSizeTextTypeUniformWithConfiguration(10, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+                    gravity = Gravity.CENTER
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(if (index == actions.childCount - 1) red else mint)
+                    setPadding(dp(4), dp(4), dp(4), dp(4))
+                    setAutoSizeTextTypeUniformWithConfiguration(11, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+                    background = android.graphics.drawable.RippleDrawable(
+                        ColorStateList.valueOf(Color.argb(45, 113, 226, 188)),
+                        android.graphics.drawable.ColorDrawable(Color.rgb(29, 47, 58)),
+                        android.graphics.drawable.ColorDrawable(Color.WHITE)
+                    )
                 }
             }
-            card.addView(actions.spaced(8))
-            content.addView(card.spaced(12))
+            watchdogCard.addView(View(this).apply { setBackgroundColor(dividerColor) }, LinearLayout.LayoutParams(-1, dp(1)))
+            watchdogCard.addView(actions, LinearLayout.LayoutParams(-1, dp(48)))
+            content.addView(watchdogCard.spaced(12))
         }
     }
 

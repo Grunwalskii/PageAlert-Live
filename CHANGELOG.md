@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.24
+
+- Widen watchdog cards by reducing the Monitors tab's side margins to 12 dp.
+- Integrate the four equal-width actions into a full-width bottom button bar with a filled background, separators, press feedback, and the card's rounded bottom corners. Give Delete a distinct red label and retain automatic label sizing.
+
 ## 1.0.23
 
 - Remove the Device settings card and its two shortcuts.
