@@ -35,6 +35,9 @@ class WatchdogDisplayIntegrationTest {
         try {
             scenario.onActivity { activity ->
                 val lines = textLines(activity.findViewById(android.R.id.content))
+                assertTrue(lines.contains("5 enabled · 5 checks"))
+                assertTrue(lines.contains("Events 0"))
+                assertFalse(lines.any { it.contains("\nENABLED") || it.contains("\nCHECKS") || it.contains("\nEVENTS") })
                 assertTrue(lines.contains("Keyword present • “stock” ✓"))
                 assertTrue(lines.contains("Keyword missing • “sold out” ✓"))
                 assertTrue(lines.contains("Keyword present • “available” ✗"))

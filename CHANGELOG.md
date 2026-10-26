@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.26
+
+- Restyle watchdog deletion with an app-themed dark, rounded confirmation dialog, a highlighted watchdog name/URL, and equal-width Cancel and red Delete buttons with press feedback.
+- Keep deletion confirmation explicit and display a local error if the watchdog cannot be removed.
+- Remove the three counter cards. Put enabled-watchdog and check counts beside Your monitors, and show the event count in the renamed Events tab.
+- Rename the history heading and clear controls from Activity to Events.
+
 ## 1.0.25
 
 - Reduce the Enabled, Checks, and Events counter height from 74 dp to a compact 52 dp minimum, with smaller vertical padding. Keep the text size and allow counters to grow for larger system fonts.

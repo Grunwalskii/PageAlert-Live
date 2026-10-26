@@ -56,6 +56,7 @@ class MainActivity : Activity() {
     private var editorDialog: AlertDialog? = null
     private var termsDialog: AlertDialog? = null
     private var networkDiagnosticsDialog: AlertDialog? = null
+    private var deleteDialog: AlertDialog? = null
     private val timeLabels = mutableListOf<Pair<String, TextView>>()
     private val tabButtons = mutableListOf<Button>()
     private val bg = Color.rgb(12, 20, 28)
@@ -87,7 +88,7 @@ class MainActivity : Activity() {
         header.addView(statePill)
         root.addView(header)
         val tabs = row().apply { setPadding(dp(18), 0, dp(18), dp(8)) }
-        listOf("Monitors", "Activity", "Settings").forEachIndexed { index, label ->
+        listOf("Monitors", "Events", "Settings").forEachIndexed { index, label ->
             val tabButton = button(label, false) {
                 if (tab != index) scroll.scrollTo(0, 0)
                 tab = index
@@ -126,11 +127,12 @@ class MainActivity : Activity() {
         ticker = scope.launch { while (isActive) { updateTimes(); delay(1000) } }
     }
     override fun onStop() { observation?.cancel(); ticker?.cancel(); super.onStop() }
-    override fun onDestroy() { networkDiagnosticsDialog?.dismiss(); termsDialog?.dismiss(); editorDialog?.dismiss(); scope.cancel(); super.onDestroy() }
+    override fun onDestroy() { deleteDialog?.dismiss(); networkDiagnosticsDialog?.dismiss(); termsDialog?.dismiss(); editorDialog?.dismiss(); scope.cancel(); super.onDestroy() }
     override fun onResume() { super.onResume(); if (::content.isInitialized) render(repository.state.value); refreshEditorNetwork?.invoke() }
 
     private fun render(state: AppState) {
         tabButtons.forEachIndexed { index, button ->
+            if (index == 1) button.text = "Events ${state.history.size}"
             val selected = index == tab
             button.isSelected = selected
             button.background = shape(if (selected) mint else Color.TRANSPARENT, 12)
@@ -183,17 +185,20 @@ class MainActivity : Activity() {
 
     private fun monitors(state: AppState) {
         val networkNote = if (state.monitors.any { it.alternateNetworks }) DeviceNetworkState.read(this).note else ""
-        val stats = row()
-        listOf("${state.monitors.count { it.enabled }}\nENABLED", "${state.statuses.values.sumOf { it.checks }}\nCHECKS", "${state.history.size}\nEVENTS").forEach { label ->
-            stats.addView(text(label, 16, mint, true).apply {
-                gravity = Gravity.CENTER; minimumHeight = dp(52)
-                setPadding(0, dp(4), 0, dp(4)); background = shape(panel, 14)
-            }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
-        }
-        content.addView(stats.spaced(20))
         val heading = row()
-        heading.addView(text("Your monitors", 21, white, true), LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(button("+ Add", true) { editor(null) })
+        val summary = row()
+        summary.addView(text("Your monitors", 21, white, true))
+        val enabled = state.monitors.count { it.enabled }
+        val checks = state.statuses.values.sumOf { it.checks }
+        summary.addView(text("$enabled enabled · $checks checks", 12, muted).apply {
+            maxLines = 2
+            setPadding(dp(8), 0, dp(8), 0)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        heading.addView(summary, LinearLayout.LayoutParams(0, -2, 1f))
+        heading.addView(button("+ Add", true) { editor(null) }.apply {
+            minWidth = 0; minimumWidth = 0
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+        }, LinearLayout.LayoutParams(dp(64), dp(44)))
         content.addView(heading.spaced(12))
         if (state.monitors.isEmpty()) {
             val empty = card()
@@ -289,11 +294,7 @@ class MainActivity : Activity() {
             actions.addView(button("Open page", false) {
                 BrowserLinks.open(this, monitor.url)
             }, LinearLayout.LayoutParams(0, dp(48), 1f))
-            actions.addView(button("Delete", false) {
-                AlertDialog.Builder(this).setTitle("Delete ${monitor.name}?")
-                    .setMessage("This removes the monitor and disarms its active alert.")
-                    .setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> repository.delete(monitor.id) }.show()
-            }, LinearLayout.LayoutParams(0, dp(48), 1f))
+            actions.addView(button("Delete", false) { showDeleteConfirmation(monitor) }, LinearLayout.LayoutParams(0, dp(48), 1f))
             val dividerColor = Color.rgb(48, 70, 83)
             actions.showDividers = LinearLayout.SHOW_DIVIDER_MIDDLE
             actions.dividerDrawable = android.graphics.drawable.GradientDrawable().apply {
@@ -322,14 +323,55 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showDeleteConfirmation(monitor: Monitor) {
+        if (deleteDialog?.isShowing == true) return
+        val body = column(24).apply { setPadding(dp(24), dp(24), dp(24), dp(24)) }
+        val dialog = AlertDialog.Builder(this).setView(body).create()
+        body.addView(text("Delete watchdog?", 22, white, true))
+        body.addView(text("This removes the watchdog and disarms its active alert.", 14, muted).spaced(8))
+        val target = card(bg)
+        target.addView(text(monitor.name, 17, white, true))
+        target.addView(text(monitor.url, 12, muted).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END }.spaced(6))
+        body.addView(target.spaced(16))
+        val error = text("", 13, red).apply { visibility = View.GONE }
+        body.addView(error.spaced(8))
+        val actions = row()
+        val cancel = button("Cancel", false) { dialog.dismiss() }.apply {
+            setTextColor(white)
+            background = android.graphics.drawable.RippleDrawable(
+                ColorStateList.valueOf(Color.argb(35, 113, 226, 188)),
+                shape(bg, 12).apply { setStroke(dp(1), Color.rgb(51, 75, 89)) }, shape(Color.WHITE, 12))
+        }
+        val confirm = button("Delete", true) {
+            try { repository.delete(monitor.id); dialog.dismiss() }
+            catch (_: Exception) { error.text = "Could not delete watchdog. Please try again."; error.visibility = View.VISIBLE }
+        }.apply {
+            setTextColor(bg)
+            setTypeface(typeface, Typeface.BOLD)
+            background = android.graphics.drawable.RippleDrawable(
+                ColorStateList.valueOf(Color.argb(40, 255, 255, 255)), shape(red, 12), shape(Color.WHITE, 12))
+        }
+        actions.addView(cancel, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(10) })
+        actions.addView(confirm, LinearLayout.LayoutParams(0, dp(48), 1f))
+        body.addView(actions.spaced(20))
+        deleteDialog = dialog
+        dialog.setOnDismissListener { deleteDialog = null }
+        dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawable(shape(panel, 24))
+            setLayout(minOf(resources.displayMetrics.widthPixels - dp(32), dp(420)), ViewGroup.LayoutParams.WRAP_CONTENT)
+            setDimAmount(0.65f)
+        }
+    }
+
     private fun history(state: AppState) {
-        content.addView(text("Activity", 23, white, true).spaced())
+        content.addView(text("Events", 23, white, true).spaced())
         content.addView(text("Latest 100 alerts and HTTP errors.", 13, muted).spaced())
-        if (state.history.isNotEmpty()) content.addView(settingsButton("Clear activity") {
-            AlertDialog.Builder(this).setTitle("Clear activity?").setNegativeButton("Cancel", null)
+        if (state.history.isNotEmpty()) content.addView(settingsButton("Clear events") {
+            AlertDialog.Builder(this).setTitle("Clear events?").setNegativeButton("Cancel", null)
                 .setPositiveButton("Clear") { _, _ -> repository.update(true) { it.copy(history = emptyList()) } }.show()
         }.spaced())
-        if (state.history.isEmpty()) content.addView(text("No activity yet.", 17, muted).spaced(24))
+        if (state.history.isEmpty()) content.addView(text("No events yet.", 17, muted).spaced(24))
         state.history.forEach { event ->
             val box = card()
             box.addView(text(if (event.kind == EventKind.HTTP_ERROR) "HTTP error • ${event.name}" else event.name, 18, white, true))

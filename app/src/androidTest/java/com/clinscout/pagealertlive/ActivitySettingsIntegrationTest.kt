@@ -52,25 +52,25 @@ class ActivitySettingsIntegrationTest {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         fun ui(action: () -> Unit) { scenario.onActivity { action() }; instrumentation.waitForIdleSync() }
         try {
-            ui { click("Activity") }
+            ui { click("Events 4") }
             ui {
                 routes.forEach { assertNotNull(text("Connection: $it")) }
                 assertNotNull(text("Connection: Not recorded"))
-                val clear = text("Clear activity")!!
+                val clear = text("Clear events")!!
                 val firstEntry = text("HTTP error • Console")!!
                 val clearPosition = IntArray(2).also(clear::getLocationOnScreen)
                 val entryPosition = IntArray(2).also(firstEntry::getLocationOnScreen)
                 assertTrue("Clear belongs above the first event", clearPosition[1] + clear.height <= entryPosition[1])
-                assertEquals(1, windows().filterIsInstance<TextView>().count { it.text == "Clear activity" })
+                assertEquals(1, windows().filterIsInstance<TextView>().count { it.text == "Clear events" })
             }
             shell("screencap -p /sdcard/Download/pagealert-activity-110.png")
-            ui { click("Clear activity") }
+            ui { click("Clear events") }
             ui { click("Cancel") }
             assertEquals(4, MonitorRepository(context).state.value.history.size)
-            ui { click("Clear activity") }
+            ui { click("Clear events") }
             ui { click("Clear") }
             assertTrue(MonitorRepository(context).state.value.history.isEmpty())
-            ui { assertNotNull(text("No activity yet.")); assertNull(text("Clear activity")) }
+            ui { assertNotNull(text("No events yet.")); assertNull(text("Clear events")); assertNotNull(text("Events 0")) }
         } finally { scenario.close(); context.repository.update(true) { AppState() } }
     }
 

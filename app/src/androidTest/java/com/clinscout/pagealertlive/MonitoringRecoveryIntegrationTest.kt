@@ -152,7 +152,7 @@ class MonitoringRecoveryIntegrationTest {
                 instrumentation.waitForIdleSync()
                 instrumentation.runOnMainSync {
                     val root = activity.findViewById<View>(android.R.id.content)
-                    assertTrue((findText(root, "Activity") as Button).isSelected)
+                    assertTrue((findText(root, "Events ${context.repository.state.value.history.size}") as Button).isSelected)
                     assertNotNull(findText(root, "HTTP error • Recovery watchdog"))
                     assertNotNull(findText(root, "Connection: ${saved.history.single().connection}"))
                     activity.finish()
